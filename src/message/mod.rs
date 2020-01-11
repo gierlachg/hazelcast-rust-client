@@ -18,11 +18,11 @@ pub(crate) struct Message {
     // TODO: retry-able ???
     message_type: u16,
     partition_id: i32,
-    payload: Vec<u8>,
+    payload: BytesMut,
 }
 
 impl Message {
-    pub(crate) fn new(message_type: u16, partition_id: i32, payload: Vec<u8>) -> Self {
+    pub(crate) fn new(message_type: u16, partition_id: i32, payload: BytesMut) -> Self {
         Message {
             message_type,
             partition_id,
@@ -61,7 +61,7 @@ where
         let mut bytes = BytesMut::new();
         payload.write_to(&mut bytes);
 
-        Message::new(T::r#type(), payload.partition_id(), bytes.to_vec())
+        Message::new(T::r#type(), payload.partition_id(), bytes)
     }
 }
 

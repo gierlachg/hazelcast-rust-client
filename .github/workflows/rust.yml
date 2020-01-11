@@ -19,7 +19,7 @@ jobs:
       # `cargo check` command here will use installed `nightly`
       # as it set as an "override" for current directory
 
-      - name: Run cargo check
+      - name: Run cargo test
         uses: actions-rs/cargo@v1
         with:
-          command: check
+          command: test

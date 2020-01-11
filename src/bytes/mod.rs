@@ -43,7 +43,7 @@ pub(crate) trait Readable {
 
     fn read_u64(&mut self) -> u64;
 
-    fn read_slice(&mut self, len: usize) -> Vec<u8>;
+    fn read_slice(&mut self, len: usize) -> BytesMut;
 
     fn skip(&mut self, len: usize);
 }
@@ -149,7 +149,7 @@ impl Reader for u64 {
 impl Reader for String {
     fn read_from(readable: &mut dyn Readable) -> Self {
         let len = readable.read_u32().try_into().expect("unable to convert!");
-        std::str::from_utf8(&readable.read_slice(len)) // TODO: read string, optimize ???
+        std::str::from_utf8(&readable.read_slice(len))
             .expect("unable to parse utf8 string!")
             .to_string()
     }
@@ -222,10 +222,8 @@ impl Readable for BytesMut {
         self.get_u64_le()
     }
 
-    fn read_slice(&mut self, len: usize) -> Vec<u8> {
-        let value = Vec::from(&self[..len]);
-        let _ = self.split_to(len);
-        value
+    fn read_slice(&mut self, len: usize) -> BytesMut {
+        self.split_to(len)
     }
 
     fn skip(&mut self, len: usize) {

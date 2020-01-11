@@ -32,22 +32,3 @@ impl HazelcastClient {
         PnCounter::new(name, &mut self.connection)
     }
 }
-
-#[cfg(test)]
-mod tests {
-    use tokio;
-
-    use crate::HazelcastClient;
-    use crate::Result;
-
-    #[tokio::test]
-    async fn run() -> Result<()> {
-        let mut client = HazelcastClient::new("127.0.0.1:5701", "dev", "dev-pass").await?;
-
-        let mut counter = client.pn_counter("my-counter");
-        let value = counter.get().await?;
-        println!("counter value: {}", value);
-
-        Ok(())
-    }
-}
