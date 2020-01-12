@@ -1,6 +1,6 @@
 use std::{convert::TryInto, fmt};
 
-use bytes::BytesMut;
+use bytes::{Buf, Bytes, BytesMut};
 
 use crate::bytes::{Readable, Reader, Writer};
 use crate::TryFrom;
@@ -18,11 +18,11 @@ pub(crate) struct Message {
     // TODO: retry-able ???
     message_type: u16,
     partition_id: i32,
-    payload: BytesMut,
+    payload: Bytes,
 }
 
 impl Message {
-    pub(crate) fn new(message_type: u16, partition_id: i32, payload: BytesMut) -> Self {
+    pub(crate) fn new(message_type: u16, partition_id: i32, payload: Bytes) -> Self {
         Message {
             message_type,
             partition_id,
@@ -38,8 +38,8 @@ impl Message {
         self.partition_id
     }
 
-    pub(crate) fn payload(&self) -> &[u8] {
-        &self.payload
+    pub(crate) fn payload(&self) -> Bytes {
+        self.payload.clone()
     }
 }
 
@@ -61,7 +61,7 @@ where
         let mut bytes = BytesMut::new();
         payload.write_to(&mut bytes);
 
-        Message::new(T::r#type(), payload.partition_id(), bytes)
+        Message::new(T::r#type(), payload.partition_id(), bytes.to_bytes())
     }
 }
 
@@ -72,7 +72,7 @@ where
     type Error = Exception;
 
     fn try_from(self) -> Result<T, Self::Error> {
-        let readable = &mut BytesMut::from(self.payload());
+        let readable = &mut self.payload();
         if self.message_type() == T::r#type() {
             Ok(T::read_from(readable))
         } else {

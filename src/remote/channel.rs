@@ -64,13 +64,11 @@ impl Channel {
                     Ok(Event::Egress(message, responder)) => {
                         let mut frame = BytesMut::new();
                         let correlation_id = correlator.set(responder);
-                        FrameCodec::encode(message, correlation_id, &mut frame);
+                        FrameCodec::encode(&mut frame, message, correlation_id);
                         writer.send(frame.to_bytes()).await?;
                     }
                     Ok(Event::Ingress(mut frame)) => {
-                        let frame_length = frame.len();
-                        let (message, correlation_id) =
-                            FrameCodec::decode(&mut frame, frame_length);
+                        let (message, correlation_id) = FrameCodec::decode(&mut frame.to_bytes());
                         match correlator
                             .get(&correlation_id)
                             .expect("missing correlation!")

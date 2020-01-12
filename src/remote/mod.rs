@@ -46,7 +46,7 @@ const HEADER_LENGTH: usize = 22;
 struct FrameCodec {}
 
 impl FrameCodec {
-    fn encode(message: Message, correlation_id: u64, frame: &mut dyn Writeable) {
+    fn encode(frame: &mut dyn Writeable, message: Message, correlation_id: u64) {
         let data_offset: u16 = HEADER_LENGTH.try_into().expect("unable to convert");
 
         PROTOCOL_VERSION.write_to(frame);
@@ -58,7 +58,7 @@ impl FrameCodec {
         message.payload().write_to(frame);
     }
 
-    fn decode(frame: &mut dyn Readable, frame_length: usize) -> (Message, u64) {
+    fn decode(frame: &mut dyn Readable) -> (Message, u64) {
         let _version = frame.read_u8();
         let _flags = frame.read_u8();
         let message_type = frame.read_u16();
@@ -67,7 +67,7 @@ impl FrameCodec {
 
         let data_offset: usize = frame.read_u16().try_into().expect("unable to convert!");
         frame.skip(data_offset - HEADER_LENGTH);
-        let payload = frame.read_slice(frame_length - data_offset);
+        let payload = frame.read();
 
         (
             Message::new(message_type, partition_id, payload),

@@ -1,6 +1,6 @@
 use std::convert::TryInto;
 
-use bytes::{Buf, BufMut, BytesMut};
+use bytes::{Buf, BufMut, Bytes, BytesMut};
 
 pub(crate) trait Writer {
     fn write_to(&self, writeable: &mut dyn Writeable);
@@ -43,7 +43,9 @@ pub(crate) trait Readable {
 
     fn read_u64(&mut self) -> u64;
 
-    fn read_slice(&mut self, len: usize) -> BytesMut;
+    fn read_slice(&mut self, len: usize) -> Bytes;
+
+    fn read(&mut self) -> Bytes;
 
     fn skip(&mut self, len: usize);
 }
@@ -193,7 +195,7 @@ impl Writeable for BytesMut {
     }
 }
 
-impl Readable for BytesMut {
+impl Readable for Bytes {
     fn read_bool(&mut self) -> bool {
         self.read_u8() > 0
     }
@@ -222,8 +224,12 @@ impl Readable for BytesMut {
         self.get_u64_le()
     }
 
-    fn read_slice(&mut self, len: usize) -> BytesMut {
+    fn read_slice(&mut self, len: usize) -> Bytes {
         self.split_to(len)
+    }
+
+    fn read(&mut self) -> Bytes {
+        self.split_to(self.len())
     }
 
     fn skip(&mut self, len: usize) {
