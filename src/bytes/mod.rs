@@ -160,9 +160,9 @@ impl Reader for String {
 impl Writeable for BytesMut {
     fn write_bool(&mut self, value: bool) {
         if value {
-            self.put_u8(0);
-        } else {
             self.put_u8(1);
+        } else {
+            self.put_u8(0);
         }
     }
 

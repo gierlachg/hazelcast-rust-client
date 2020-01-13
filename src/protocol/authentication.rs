@@ -5,22 +5,22 @@ const CLIENT_VERSION: &str = "0.1.0";
 const SERIALIZATION_VERSION: u8 = 1;
 
 #[derive(Debug)]
-pub(crate) struct AuthenticationRequest {
-    username: String,
-    password: String,
-    id: Option<String>,
-    owner_id: Option<String>,
+pub(crate) struct AuthenticationRequest<'a> {
+    username: &'a str,
+    password: &'a str,
+    id: Option<&'a str>,
+    owner_id: Option<&'a str>,
     owner_connection: bool,
 }
 
-impl AuthenticationRequest {
-    pub(crate) fn new(username: &str, password: &str) -> Self {
+impl<'a> AuthenticationRequest<'a> {
+    pub(crate) fn new(username: &'a str, password: &'a str) -> Self {
         AuthenticationRequest {
-            username: username.to_string(),
-            password: password.to_string(),
+            username,
+            password,
             id: None,
             owner_id: None,
-            owner_connection: false,
+            owner_connection: true,
         }
     }
 
@@ -32,12 +32,12 @@ impl AuthenticationRequest {
         &self.password
     }
 
-    pub(crate) fn id(&self) -> &Option<String> {
-        &self.id
+    pub(crate) fn id(&self) -> Option<&'a str> {
+        self.id
     }
 
-    pub(crate) fn owner_id(&self) -> &Option<String> {
-        &self.owner_id
+    pub(crate) fn owner_id(&self) -> Option<&'a str> {
+        self.owner_id
     }
 
     pub(crate) fn owner_connection(&self) -> bool {

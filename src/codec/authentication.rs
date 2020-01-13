@@ -12,7 +12,7 @@ use crate::protocol::{
 const AUTHENTICATION_REQUEST_MESSAGE_TYPE: u16 = 0x2;
 const AUTHENTICATION_RESPONSE_MESSAGE_TYPE: u16 = 0x6B;
 
-impl Payload for AuthenticationRequest {
+impl<'a> Payload for AuthenticationRequest<'a> {
     fn r#type() -> u16 {
         AUTHENTICATION_REQUEST_MESSAGE_TYPE
     }
@@ -20,24 +20,24 @@ impl Payload for AuthenticationRequest {
     // TODO: partition
 }
 
-impl Writer for AuthenticationRequest {
+impl<'a> Writer for AuthenticationRequest<'a> {
     fn write_to(&self, writeable: &mut dyn Writeable) {
         self.username().write_to(writeable);
         self.password().write_to(writeable);
 
         match self.id().as_deref() {
             Some(s) => {
-                true.write_to(writeable);
+                false.write_to(writeable);
                 s.write_to(writeable);
             }
-            None => false.write_to(writeable),
+            None => true.write_to(writeable),
         }
         match self.owner_id().as_deref() {
             Some(s) => {
-                true.write_to(writeable);
+                false.write_to(writeable);
                 s.write_to(writeable);
             }
-            None => false.write_to(writeable),
+            None => true.write_to(writeable),
         }
 
         self.owner_connection().write_to(writeable);

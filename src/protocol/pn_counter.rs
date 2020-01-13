@@ -5,7 +5,7 @@ use crate::remote::connection::Connection;
 pub struct PnCounter<'a> {
     name: String,
     connection: &'a mut Connection,
-    replica_timestamp_entries: Vec<ReplicaTimestampEntry>,
+    replica_timestamps: Vec<ReplicaTimestampEntry>,
 }
 
 impl<'a> PnCounter<'a> {
@@ -13,20 +13,47 @@ impl<'a> PnCounter<'a> {
         PnCounter {
             name: name.to_string(),
             connection,
-            replica_timestamp_entries: vec![],
+            replica_timestamps: vec![],
         }
     }
 
     pub async fn get(&mut self) -> Result<i64> {
         let address = self.connection.address().clone().expect("missing address!"); // TODO: not sure where address should come from, what is its purpose....
-        
+
         let request =
-            PnCounterGetRequest::new(&self.name, address, &self.replica_timestamp_entries).into();
+            PnCounterGetRequest::new(&self.name, &address, &self.replica_timestamps).into();
         let response = self.connection.send(request).await?;
 
         match TryFrom::<PnCounterGetResponse>::try_from(response) {
             Ok(response) => {
-                self.replica_timestamp_entries = response.replica_timestamp_entries().to_vec();
+                self.replica_timestamps = response.replica_timestamps().to_vec();
+                Ok(response.value())
+            }
+            Err(exception) => {
+                eprintln!("{}", exception);
+                Err("Unable to crate connection.".into())
+            }
+        }
+    }
+
+    pub async fn get_and_add(&mut self, delta: i64) -> Result<i64> {
+        self.add(delta, true).await
+    }
+
+    pub async fn add_and_get(&mut self, delta: i64) -> Result<i64> {
+        self.add(delta, false).await
+    }
+
+    async fn add(&mut self, delta: i64, get_before_update: bool) -> Result<i64> {
+        let address = self.connection.address().clone().expect("missing address!"); // TODO: not sure where address should come from, what is its purpose....
+
+        let request =
+            PnCounterAddRequest::new(&self.name, &address, delta, get_before_update, &self.replica_timestamps).into();
+        let response = self.connection.send(request).await?;
+
+        match TryFrom::<PnCounterAddResponse>::try_from(response) {
+            Ok(response) => {
+                self.replica_timestamps = response.replica_timestamps().to_vec();
                 Ok(response.value())
             }
             Err(exception) => {
@@ -38,49 +65,49 @@ impl<'a> PnCounter<'a> {
 }
 
 #[derive(Debug)]
-pub(crate) struct PnCounterGetRequest {
-    name: String,
-    address: Address,
-    replica_timestamp_entries: Vec<ReplicaTimestampEntry>,
+pub(crate) struct PnCounterGetRequest<'a> {
+    name: &'a str,
+    address: &'a Address,
+    replica_timestamps: &'a [ReplicaTimestampEntry],
 }
 
-impl PnCounterGetRequest {
+impl<'a> PnCounterGetRequest<'a> {
     fn new(
-        name: &str,
-        address: Address,
-        replica_timestamp_entries: &[ReplicaTimestampEntry],
+        name: &'a str,
+        address: &'a Address,
+        replica_timestamps: &'a [ReplicaTimestampEntry],
     ) -> Self {
         PnCounterGetRequest {
-            name: name.to_string(),
+            name,
             address,
-            replica_timestamp_entries: replica_timestamp_entries.to_vec(),
+            replica_timestamps,
         }
     }
 
     pub(crate) fn name(&self) -> &str {
-        &self.name
+        self.name
     }
 
     pub(crate) fn address(&self) -> &Address {
-        &self.address
+        self.address
     }
 
-    pub(crate) fn replica_timestamp_entries(&self) -> &[ReplicaTimestampEntry] {
-        &self.replica_timestamp_entries
+    pub(crate) fn replica_timestamps(&self) -> &[ReplicaTimestampEntry] {
+        self.replica_timestamps
     }
 }
 
 #[derive(Debug)]
 pub(crate) struct PnCounterGetResponse {
     value: i64,
-    replica_timestamp_entries: Vec<ReplicaTimestampEntry>,
+    replica_timestamps: Vec<ReplicaTimestampEntry>,
 }
 
 impl PnCounterGetResponse {
-    pub(crate) fn new(value: i64, replica_timestamp_entries: &[ReplicaTimestampEntry]) -> Self {
+    pub(crate) fn new(value: i64, replica_timestamps: &[ReplicaTimestampEntry]) -> Self {
         PnCounterGetResponse {
             value,
-            replica_timestamp_entries: replica_timestamp_entries.to_vec(),
+            replica_timestamps: replica_timestamps.to_vec(),
         }
     }
 
@@ -88,8 +115,80 @@ impl PnCounterGetResponse {
         self.value
     }
 
-    pub(crate) fn replica_timestamp_entries(&self) -> &[ReplicaTimestampEntry] {
-        &self.replica_timestamp_entries
+    pub(crate) fn replica_timestamps(&self) -> &[ReplicaTimestampEntry] {
+        &self.replica_timestamps
+    }
+}
+
+#[derive(Debug)]
+pub(crate) struct PnCounterAddRequest<'a> {
+    name: &'a str,
+    address: &'a Address,
+    get_before_update: bool,
+    delta: i64,
+    replica_timestamps: &'a [ReplicaTimestampEntry],
+}
+
+impl<'a> PnCounterAddRequest<'a> {
+    fn new(
+        name: &'a str,
+        address: &'a Address,
+        delta: i64,
+        get_before_update: bool,
+        replica_timestamps: &'a [ReplicaTimestampEntry],
+    ) -> Self {
+        PnCounterAddRequest {
+            name,
+            address,
+            delta,
+            get_before_update,
+            replica_timestamps,
+        }
+    }
+
+    pub(crate) fn name(&self) -> &str {
+        self.name
+    }
+
+    pub(crate) fn address(&self) -> &Address {
+        self.address
+    }
+
+    pub(crate) fn delta(&self) -> i64 {
+        self.delta
+    }
+
+    pub(crate) fn get_before_update(&self) -> bool {
+        self.get_before_update
+    }
+
+    pub(crate) fn replica_timestamps(&self) -> &[ReplicaTimestampEntry] {
+        self.replica_timestamps
+    }
+}
+
+#[derive(Debug)]
+pub(crate) struct PnCounterAddResponse {
+    value: i64,
+    replica_timestamps: Vec<ReplicaTimestampEntry>,
+    _replica_count: u32,
+}
+
+impl PnCounterAddResponse {
+    pub(crate) fn new(value: i64, replica_timestamps: &[ReplicaTimestampEntry], replica_count: u32) -> Self {
+        PnCounterAddResponse {
+            value,
+            replica_timestamps: replica_timestamps.to_vec(),
+            _replica_count: replica_count,
+        }
+    }
+
+    pub(crate) fn value(&self) -> i64 {
+        self.value
+    }
+
+    pub(crate) fn replica_timestamps(&self) -> &[ReplicaTimestampEntry] {
+        &self.replica_timestamps
     }
 }
 
