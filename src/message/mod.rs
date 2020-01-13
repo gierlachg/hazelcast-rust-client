@@ -13,7 +13,7 @@ pub(crate) trait Payload {
     }
 }
 
-#[derive(Debug)]
+#[derive(Debug, Eq, PartialEq)]
 pub(crate) struct Message {
     // TODO: retry-able ???
     message_type: u16,

@@ -46,7 +46,7 @@ const HEADER_LENGTH: usize = 22;
 struct FrameCodec {}
 
 impl FrameCodec {
-    fn encode(frame: &mut dyn Writeable, message: Message, correlation_id: u64) {
+    fn encode(frame: &mut dyn Writeable, message: &Message, correlation_id: u64) {
         let data_offset: u16 = HEADER_LENGTH.try_into().expect("unable to convert");
 
         PROTOCOL_VERSION.write_to(frame);
@@ -73,5 +73,27 @@ impl FrameCodec {
             Message::new(message_type, partition_id, payload),
             correlation_id,
         )
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use bytes::{Buf, Bytes, BytesMut};
+
+    use super::*;
+
+    #[test]
+    fn should_encode_and_decode_message() {
+        let message = Message::new(1, 2, Bytes::from(vec![3]));
+
+        let mut writeable = BytesMut::new();
+        FrameCodec::encode(&mut writeable, &message, 13);
+        assert_eq!(
+            writeable.bytes(),
+            [1, 192, 1, 0, 13, 0, 0, 0, 0, 0, 0, 0, 2, 0, 0, 0, 22, 0, 3]
+        );
+
+        let mut readable = writeable.to_bytes();
+        assert_eq!(FrameCodec::decode(&mut readable), (message, 13));
     }
 }

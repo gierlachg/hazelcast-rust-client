@@ -64,7 +64,7 @@ impl Channel {
                     Ok(Event::Egress(message, responder)) => {
                         let mut frame = BytesMut::new();
                         let correlation_id = correlator.set(responder);
-                        FrameCodec::encode(&mut frame, message, correlation_id);
+                        FrameCodec::encode(&mut frame, &message, correlation_id);
                         writer.send(frame.to_bytes()).await?;
                     }
                     Ok(Event::Ingress(mut frame)) => {
