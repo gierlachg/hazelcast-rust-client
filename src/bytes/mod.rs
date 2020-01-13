@@ -233,6 +233,127 @@ impl Readable for Bytes {
     }
 
     fn skip(&mut self, len: usize) {
-        let _ = self.split_to(len);
+        self.advance(len);
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn should_write_and_read_bool() {
+        let writeable = &mut BytesMut::new();
+        true.write_to(writeable);
+        false.write_to(writeable);
+
+        let readable = &mut writeable.to_bytes();
+        assert_eq!(bool::read_from(readable), true);
+        assert_eq!(bool::read_from(readable), false);
+    }
+
+    #[test]
+    fn should_write_and_read_u8() {
+        let writeable = &mut BytesMut::new();
+        1u8.write_to(writeable);
+        0u8.write_to(writeable);
+
+        let readable = &mut writeable.to_bytes();
+        assert_eq!(u8::read_from(readable), 1);
+        assert_eq!(u8::read_from(readable), 0);
+    }
+
+    #[test]
+    fn should_write_and_read_u16() {
+        let writeable = &mut BytesMut::new();
+        1u16.write_to(writeable);
+        0u16.write_to(writeable);
+
+        let readable = &mut writeable.to_bytes();
+        assert_eq!(u16::read_from(readable), 1);
+        assert_eq!(u16::read_from(readable), 0);
+    }
+
+    #[test]
+    fn should_write_and_read_i32() {
+        let writeable = &mut BytesMut::new();
+        (-1i32).write_to(writeable);
+        1i32.write_to(writeable);
+
+        let readable = &mut writeable.to_bytes();
+        assert_eq!(i32::read_from(readable), -1);
+        assert_eq!(i32::read_from(readable), 1);
+    }
+
+    #[test]
+    fn should_write_and_read_u32() {
+        let writeable = &mut BytesMut::new();
+        1u32.write_to(writeable);
+        0u32.write_to(writeable);
+
+        let readable = &mut writeable.to_bytes();
+        assert_eq!(u32::read_from(readable), 1);
+        assert_eq!(u32::read_from(readable), 0);
+    }
+
+    #[test]
+    fn should_write_and_read_i64() {
+        let writeable = &mut BytesMut::new();
+        (-1i64).write_to(writeable);
+        1i64.write_to(writeable);
+
+        let readable = &mut writeable.to_bytes();
+        assert_eq!(i64::read_from(readable), -1);
+        assert_eq!(i64::read_from(readable), 1);
+    }
+
+    #[test]
+    fn should_write_and_read_u64() {
+        let writeable = &mut BytesMut::new();
+        1u64.write_to(writeable);
+        0u64.write_to(writeable);
+
+        let readable = &mut writeable.to_bytes();
+        assert_eq!(u64::read_from(readable), 1);
+        assert_eq!(u64::read_from(readable), 0);
+    }
+
+    #[test]
+    fn should_write_and_read_slice() {
+        let writeable = &mut BytesMut::new();
+        [1, 0, 0, 1].write_to(writeable);
+
+        let readable = &mut writeable.to_bytes();
+        assert_eq!(readable.read_slice(2)[..], [1, 0]);
+        assert_eq!(readable.read_slice(2)[..], [0, 1]);
+    }
+
+    #[test]
+    fn should_write_and_read_str() {
+        let writeable = &mut BytesMut::new();
+        "payload".write_to(writeable);
+
+        let readable = &mut writeable.to_bytes();
+        assert_eq!(String::read_from(readable), "payload");
+    }
+
+    #[test]
+    fn should_read_remaining_slice() {
+        let writeable = &mut BytesMut::new();
+        [1, 0, 0, 1].write_to(writeable);
+
+        let readable = &mut writeable.to_bytes();
+        assert_eq!(readable.read_slice(1)[..], [1]);
+        assert_eq!(readable.read()[..], [0, 0, 1]);
+    }
+
+    #[test]
+    fn should_skip() {
+        let writeable = &mut BytesMut::new();
+        [1, 0, 1, 0].write_to(writeable);
+
+        let readable = &mut writeable.to_bytes();
+        readable.skip(1);
+        assert_eq!(readable.read()[..], [0, 1, 0]);
     }
 }
