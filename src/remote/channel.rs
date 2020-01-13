@@ -88,7 +88,7 @@ impl Channel {
         Ok(Channel { egress })
     }
 
-    pub(crate) async fn send(&mut self, egress: Message) -> Result<Message> {
+    pub(crate) async fn send(&self, egress: Message) -> Result<Message> {
         let (sender, receiver) = oneshot::channel();
         self.egress.send((egress, sender))?;
         let ingress = receiver.await?;

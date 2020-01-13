@@ -21,7 +21,7 @@ pub(crate) struct Connection {
 
 impl Connection {
     pub(crate) async fn create(address: &str, username: &str, password: &str) -> Result<Self> {
-        let mut channel = Channel::connect(address).await?;
+        let channel = Channel::connect(address).await?;
 
         let request = AuthenticationRequest::new(username, password).into();
         let response = channel.send(request).await?;
@@ -43,7 +43,7 @@ impl Connection {
         }
     }
 
-    pub(crate) async fn send(&mut self, message: Message) -> Result<Message> {
+    pub(crate) async fn send(&self, message: Message) -> Result<Message> {
         Ok(self.channel.send(message).await?)
     }
 

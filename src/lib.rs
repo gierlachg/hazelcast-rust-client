@@ -2,6 +2,7 @@ use std::error::Error;
 
 use crate::protocol::pn_counter::PnCounter;
 use crate::remote::connection::Connection;
+use std::sync::Arc;
 
 mod bytes;
 mod codec;
@@ -18,17 +19,19 @@ pub(crate) trait TryFrom<T> {
 }
 
 pub struct HazelcastClient {
-    connection: Connection,
+    connection: Arc<Connection>,
 }
 
 impl HazelcastClient {
     pub async fn new(address: &str, username: &str, password: &str) -> Result<Self> {
         let connection = Connection::create(address, username, password).await?;
 
-        Ok(HazelcastClient { connection })
+        Ok(HazelcastClient {
+            connection: Arc::new(connection),
+        })
     }
 
-    pub fn pn_counter(&mut self, name: &str) -> PnCounter {
-        PnCounter::new(name, &mut self.connection)
+    pub fn pn_counter(&self, name: &str) -> PnCounter {
+        PnCounter::new(name, self.connection.clone())
     }
 }

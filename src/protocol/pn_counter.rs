@@ -1,15 +1,16 @@
 use crate::protocol::Address;
 use crate::remote::connection::Connection;
 use crate::{Result, TryFrom};
+use std::sync::Arc;
 
-pub struct PnCounter<'a> {
+pub struct PnCounter {
     name: String,
-    connection: &'a mut Connection,
+    connection: Arc<Connection>,
     replica_timestamps: Vec<ReplicaTimestampEntry>,
 }
 
-impl<'a> PnCounter<'a> {
-    pub(crate) fn new(name: &str, connection: &'a mut Connection) -> Self {
+impl PnCounter {
+    pub(crate) fn new(name: &str, connection: Arc<Connection>) -> Self {
         PnCounter {
             name: name.to_string(),
             connection,

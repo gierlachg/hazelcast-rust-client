@@ -8,7 +8,7 @@ use hazelcast_rust_client::HazelcastClient;
 
 #[tokio::main]
 async fn main() -> Result<(), Box<dyn Error + Send + Sync>> {
-    let mut client = HazelcastClient::new("127.0.0.1:5701", "dev", "dev-pass").await?;
+    let client = HazelcastClient::new("127.0.0.1:5701", "dev", "dev-pass").await?;
 
     let name = &format!(
         "my-counter-{}",
