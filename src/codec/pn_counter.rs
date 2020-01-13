@@ -3,7 +3,8 @@ use std::convert::TryInto;
 use crate::bytes::{Readable, Reader, Writeable, Writer};
 use crate::message::Payload;
 use crate::protocol::pn_counter::{
-    PnCounterAddRequest, PnCounterAddResponse, PnCounterGetRequest, PnCounterGetResponse,
+    PnCounterAddRequest, PnCounterAddResponse, PnCounterGetReplicaCountRequest,
+    PnCounterGetReplicaCountResponse, PnCounterGetRequest, PnCounterGetResponse,
     ReplicaTimestampEntry,
 };
 
@@ -12,6 +13,9 @@ const GET_RESPONSE_MESSAGE_TYPE: u16 = 0x7F;
 
 const ADD_REQUEST_MESSAGE_TYPE: u16 = 0x2002;
 const ADD_RESPONSE_MESSAGE_TYPE: u16 = 0x7F;
+
+const GET_REPLICA_COUNT_REQUEST_MESSAGE_TYPE: u16 = 0x2003;
+const GET_REPLICA_COUNT_RESPONSE_MESSAGE_TYPE: u16 = 0x66;
 
 impl<'a> Payload for PnCounterGetRequest<'a> {
     fn r#type() -> u16 {
@@ -111,5 +115,33 @@ impl Reader for PnCounterAddResponse {
         let replica_count = u32::read_from(readable);
 
         PnCounterAddResponse::new(value, &replica_timestamp_entries, replica_count)
+    }
+}
+
+impl<'a> Payload for PnCounterGetReplicaCountRequest<'a> {
+    fn r#type() -> u16 {
+        GET_REPLICA_COUNT_REQUEST_MESSAGE_TYPE
+    }
+
+    // TODO: partition
+}
+
+impl<'a> Writer for PnCounterGetReplicaCountRequest<'a> {
+    fn write_to(&self, writeable: &mut dyn Writeable) {
+        self.name().write_to(writeable);
+    }
+}
+
+impl Payload for PnCounterGetReplicaCountResponse {
+    fn r#type() -> u16 {
+        GET_REPLICA_COUNT_RESPONSE_MESSAGE_TYPE
+    }
+}
+
+impl Reader for PnCounterGetReplicaCountResponse {
+    fn read_from(readable: &mut dyn Readable) -> Self {
+        let count = u32::read_from(readable);
+
+        PnCounterGetReplicaCountResponse::new(count)
     }
 }

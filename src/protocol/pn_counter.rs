@@ -1,6 +1,6 @@
-use crate::{Result, TryFrom};
 use crate::protocol::Address;
 use crate::remote::connection::Connection;
+use crate::{Result, TryFrom};
 
 pub struct PnCounter<'a> {
     name: String,
@@ -31,7 +31,7 @@ impl<'a> PnCounter<'a> {
             }
             Err(exception) => {
                 eprintln!("{}", exception);
-                Err("Unable to crate connection.".into())
+                Err("Unable to fetch counter value.".into())
             }
         }
     }
@@ -47,8 +47,14 @@ impl<'a> PnCounter<'a> {
     async fn add(&mut self, delta: i64, get_before_update: bool) -> Result<i64> {
         let address = self.connection.address().clone().expect("missing address!"); // TODO: not sure where address should come from, what is its purpose....
 
-        let request =
-            PnCounterAddRequest::new(&self.name, &address, delta, get_before_update, &self.replica_timestamps).into();
+        let request = PnCounterAddRequest::new(
+            &self.name,
+            &address,
+            delta,
+            get_before_update,
+            &self.replica_timestamps,
+        )
+        .into();
         let response = self.connection.send(request).await?;
 
         match TryFrom::<PnCounterAddResponse>::try_from(response) {
@@ -58,7 +64,20 @@ impl<'a> PnCounter<'a> {
             }
             Err(exception) => {
                 eprintln!("{}", exception);
-                Err("Unable to crate connection.".into())
+                Err("Unable to add to counter.".into())
+            }
+        }
+    }
+
+    pub async fn replica_count(&mut self) -> Result<u32> {
+        let request = PnCounterGetReplicaCountRequest::new(&self.name).into();
+        let response = self.connection.send(request).await?;
+
+        match TryFrom::<PnCounterGetReplicaCountResponse>::try_from(response) {
+            Ok(response) => Ok(response.count()),
+            Err(exception) => {
+                eprintln!("{}", exception);
+                Err("Unable to fetch replica count for counter.".into())
             }
         }
     }
@@ -175,7 +194,11 @@ pub(crate) struct PnCounterAddResponse {
 }
 
 impl PnCounterAddResponse {
-    pub(crate) fn new(value: i64, replica_timestamps: &[ReplicaTimestampEntry], replica_count: u32) -> Self {
+    pub(crate) fn new(
+        value: i64,
+        replica_timestamps: &[ReplicaTimestampEntry],
+        replica_count: u32,
+    ) -> Self {
         PnCounterAddResponse {
             value,
             replica_timestamps: replica_timestamps.to_vec(),
@@ -212,5 +235,35 @@ impl ReplicaTimestampEntry {
 
     pub(crate) fn value(&self) -> i64 {
         self.value
+    }
+}
+
+#[derive(Debug)]
+pub(crate) struct PnCounterGetReplicaCountRequest<'a> {
+    name: &'a str,
+}
+
+impl<'a> PnCounterGetReplicaCountRequest<'a> {
+    fn new(name: &'a str) -> Self {
+        PnCounterGetReplicaCountRequest { name }
+    }
+
+    pub(crate) fn name(&self) -> &str {
+        self.name
+    }
+}
+
+#[derive(Debug)]
+pub(crate) struct PnCounterGetReplicaCountResponse {
+    count: u32,
+}
+
+impl PnCounterGetReplicaCountResponse {
+    pub(crate) fn new(count: u32) -> Self {
+        PnCounterGetReplicaCountResponse { count }
+    }
+
+    pub(crate) fn count(&self) -> u32 {
+        self.count
     }
 }

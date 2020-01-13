@@ -9,3 +9,6 @@ bytes = "0.5.3"
 futures = "0.3.1"
 tokio = { version = "0.2.9", features = ["full"] }
 tokio-util = { version = "0.2.0", features = ["codec"] }
+
+[dev-dependencies]
+rand = "0.7.3"
