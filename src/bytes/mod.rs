@@ -321,39 +321,39 @@ mod tests {
     #[test]
     fn should_write_and_read_slice() {
         let writeable = &mut BytesMut::new();
-        [1, 0, 0, 1].write_to(writeable);
+        [1, 0].write_to(writeable);
 
         let readable = &mut writeable.to_bytes();
-        assert_eq!(readable.read_slice(2)[..], [1, 0]);
-        assert_eq!(readable.read_slice(2)[..], [0, 1]);
+        assert_eq!(readable.read_slice(1)[..], [1]);
+        assert_eq!(readable.read_slice(1)[..], [0]);
     }
 
     #[test]
     fn should_write_and_read_str() {
         let writeable = &mut BytesMut::new();
-        "payload".write_to(writeable);
+        "10".write_to(writeable);
 
         let readable = &mut writeable.to_bytes();
-        assert_eq!(String::read_from(readable), "payload");
+        assert_eq!(String::read_from(readable), "10");
     }
 
     #[test]
     fn should_read_remaining_slice() {
         let writeable = &mut BytesMut::new();
-        [1, 0, 0, 1].write_to(writeable);
+        [1, 0, 1].write_to(writeable);
 
         let readable = &mut writeable.to_bytes();
         assert_eq!(readable.read_slice(1)[..], [1]);
-        assert_eq!(readable.read()[..], [0, 0, 1]);
+        assert_eq!(readable.read()[..], [0, 1]);
     }
 
     #[test]
     fn should_skip() {
         let writeable = &mut BytesMut::new();
-        [1, 0, 1, 0].write_to(writeable);
+        [1, 0, 1].write_to(writeable);
 
         let readable = &mut writeable.to_bytes();
         readable.skip(1);
-        assert_eq!(readable.read()[..], [0, 1, 0]);
+        assert_eq!(readable.read()[..], [0, 1]);
     }
 }

@@ -83,7 +83,7 @@ impl<'a> PnCounter<'a> {
     }
 }
 
-#[derive(Debug)]
+#[derive(Debug, Eq, PartialEq)]
 pub(crate) struct PnCounterGetRequest<'a> {
     name: &'a str,
     address: &'a Address,
@@ -91,7 +91,7 @@ pub(crate) struct PnCounterGetRequest<'a> {
 }
 
 impl<'a> PnCounterGetRequest<'a> {
-    fn new(
+    pub(crate) fn new(
         name: &'a str,
         address: &'a Address,
         replica_timestamps: &'a [ReplicaTimestampEntry],
@@ -116,7 +116,7 @@ impl<'a> PnCounterGetRequest<'a> {
     }
 }
 
-#[derive(Debug)]
+#[derive(Debug, Eq, PartialEq)]
 pub(crate) struct PnCounterGetResponse {
     value: i64,
     replica_timestamps: Vec<ReplicaTimestampEntry>,
@@ -139,7 +139,7 @@ impl PnCounterGetResponse {
     }
 }
 
-#[derive(Debug)]
+#[derive(Debug, Eq, PartialEq)]
 pub(crate) struct PnCounterAddRequest<'a> {
     name: &'a str,
     address: &'a Address,
@@ -149,7 +149,7 @@ pub(crate) struct PnCounterAddRequest<'a> {
 }
 
 impl<'a> PnCounterAddRequest<'a> {
-    fn new(
+    pub(crate) fn new(
         name: &'a str,
         address: &'a Address,
         delta: i64,
@@ -186,7 +186,7 @@ impl<'a> PnCounterAddRequest<'a> {
     }
 }
 
-#[derive(Debug)]
+#[derive(Debug, Eq, PartialEq)]
 pub(crate) struct PnCounterAddResponse {
     value: i64,
     replica_timestamps: Vec<ReplicaTimestampEntry>,
@@ -215,7 +215,7 @@ impl PnCounterAddResponse {
     }
 }
 
-#[derive(Debug, Clone)]
+#[derive(Debug, Eq, PartialEq, Clone)]
 pub(crate) struct ReplicaTimestampEntry {
     key: String,
     value: i64,
@@ -238,13 +238,13 @@ impl ReplicaTimestampEntry {
     }
 }
 
-#[derive(Debug)]
+#[derive(Debug, Eq, PartialEq)]
 pub(crate) struct PnCounterGetReplicaCountRequest<'a> {
     name: &'a str,
 }
 
 impl<'a> PnCounterGetReplicaCountRequest<'a> {
-    fn new(name: &'a str) -> Self {
+    pub(crate) fn new(name: &'a str) -> Self {
         PnCounterGetReplicaCountRequest { name }
     }
 
@@ -253,7 +253,7 @@ impl<'a> PnCounterGetReplicaCountRequest<'a> {
     }
 }
 
-#[derive(Debug)]
+#[derive(Debug, Eq, PartialEq)]
 pub(crate) struct PnCounterGetReplicaCountResponse {
     count: u32,
 }

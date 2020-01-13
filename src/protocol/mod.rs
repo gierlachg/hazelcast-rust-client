@@ -2,7 +2,7 @@ pub(crate) mod authentication;
 
 pub mod pn_counter;
 
-#[derive(Debug, Clone)]
+#[derive(Debug, Eq, PartialEq, Clone)]
 pub(crate) struct Address {
     host: String,
     port: u32,

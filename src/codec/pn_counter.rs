@@ -145,3 +145,145 @@ impl Reader for PnCounterGetReplicaCountResponse {
         PnCounterGetReplicaCountResponse::new(count)
     }
 }
+
+#[cfg(test)]
+mod tests {
+    use bytes::{Buf, BytesMut};
+
+    use crate::protocol::Address;
+
+    use super::*;
+
+    #[test]
+    fn should_write_get_request() {
+        let address = Address::new("localhost", 5701);
+        let replica_timestamps = &[ReplicaTimestampEntry::new("key", 69)];
+        let request = PnCounterGetRequest::new("counter-name", &address, replica_timestamps);
+
+        let mut writeable = BytesMut::new();
+        request.write_to(&mut writeable);
+
+        let readable = &mut writeable.to_bytes();
+        assert_eq!(String::read_from(readable), request.name());
+        assert_eq!(
+            u32::read_from(readable),
+            request.replica_timestamps().len() as u32
+        );
+        assert_eq!(
+            String::read_from(readable),
+            request.replica_timestamps()[0].key()
+        );
+        assert_eq!(
+            i64::read_from(readable),
+            request.replica_timestamps()[0].value()
+        );
+        assert_eq!(&Address::read_from(readable), request.address());
+    }
+
+    #[test]
+    fn should_read_get_response() {
+        let value = 12;
+        let replica_timestamp_key = "replica-timestamp-key";
+        let replica_timestamp_value = 69;
+
+        let writeable = &mut BytesMut::new();
+        value.write_to(writeable);
+        1u32.write_to(writeable);
+        replica_timestamp_key.write_to(writeable);
+        replica_timestamp_value.write_to(writeable);
+
+        let readable = &mut writeable.to_bytes();
+        assert_eq!(
+            PnCounterGetResponse::read_from(readable),
+            PnCounterGetResponse::new(
+                value,
+                &[ReplicaTimestampEntry::new(
+                    replica_timestamp_key,
+                    replica_timestamp_value,
+                )],
+            )
+        );
+    }
+
+    #[test]
+    fn should_write_add_request() {
+        let address = Address::new("localhost", 5701);
+        let replica_timestamps = [ReplicaTimestampEntry::new("key", 69)];
+        let request =
+            PnCounterAddRequest::new("counter-name", &address, -13, true, &replica_timestamps);
+
+        let mut writeable = BytesMut::new();
+        request.write_to(&mut writeable);
+
+        let readable = &mut writeable.to_bytes();
+        assert_eq!(String::read_from(readable), request.name());
+        assert_eq!(i64::read_from(readable), request.delta());
+        assert_eq!(bool::read_from(readable), request.get_before_update());
+        assert_eq!(
+            u32::read_from(readable),
+            request.replica_timestamps().len() as u32
+        );
+        assert_eq!(
+            String::read_from(readable),
+            request.replica_timestamps()[0].key()
+        );
+        assert_eq!(
+            i64::read_from(readable),
+            request.replica_timestamps()[0].value()
+        );
+        assert_eq!(&Address::read_from(readable), request.address());
+    }
+
+    #[test]
+    fn should_read_add_response() {
+        let value = 12;
+        let replica_timestamp_key = "replica-timestamp-key";
+        let replica_timestamp_value = 69;
+        let replica_count = 3;
+
+        let writeable = &mut BytesMut::new();
+        value.write_to(writeable);
+        1u32.write_to(writeable);
+        replica_timestamp_key.write_to(writeable);
+        replica_timestamp_value.write_to(writeable);
+        replica_count.write_to(writeable);
+
+        let readable = &mut writeable.to_bytes();
+        assert_eq!(
+            PnCounterAddResponse::read_from(readable),
+            PnCounterAddResponse::new(
+                value,
+                &[ReplicaTimestampEntry::new(
+                    replica_timestamp_key,
+                    replica_timestamp_value,
+                )],
+                replica_count,
+            )
+        );
+    }
+
+    #[test]
+    fn should_write_replica_count_request() {
+        let request = PnCounterGetReplicaCountRequest::new("counter-name");
+
+        let mut writeable = BytesMut::new();
+        request.write_to(&mut writeable);
+
+        let readable = &mut writeable.to_bytes();
+        assert_eq!(String::read_from(readable), request.name());
+    }
+
+    #[test]
+    fn should_read_replica_count_response() {
+        let replica_count = 3;
+
+        let writeable = &mut BytesMut::new();
+        replica_count.write_to(writeable);
+
+        let readable = &mut writeable.to_bytes();
+        assert_eq!(
+            PnCounterGetReplicaCountResponse::read_from(readable),
+            PnCounterGetReplicaCountResponse::new(replica_count)
+        );
+    }
+}

@@ -84,16 +84,25 @@ mod tests {
 
     #[test]
     fn should_encode_and_decode_message() {
+        let correlation_id = 13;
         let message = Message::new(1, 2, Bytes::from(vec![3]));
 
         let mut writeable = BytesMut::new();
-        FrameCodec::encode(&mut writeable, &message, 13);
+        FrameCodec::encode(&mut writeable, &message, correlation_id);
         assert_eq!(
             writeable.bytes(),
-            [1, 192, 1, 0, 13, 0, 0, 0, 0, 0, 0, 0, 2, 0, 0, 0, 22, 0, 3]
+            [
+                1,   // version
+                192, // flags
+                1, 0, // message type
+                13, 0, 0, 0, 0, 0, 0, 0, // correlation id
+                2, 0, 0, 0, // partition id
+                22, 0, // data offset
+                3  // payload
+            ]
         );
 
         let mut readable = writeable.to_bytes();
-        assert_eq!(FrameCodec::decode(&mut readable), (message, 13));
+        assert_eq!(FrameCodec::decode(&mut readable), (message, correlation_id));
     }
 }

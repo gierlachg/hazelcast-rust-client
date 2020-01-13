@@ -19,3 +19,23 @@ impl Reader for Address {
         Address::new(&host, port)
     }
 }
+
+#[cfg(test)]
+mod tests {
+    use bytes::{Buf, BytesMut};
+
+    use crate::protocol::Address;
+
+    use super::*;
+
+    #[test]
+    fn should_write_and_read_address() {
+        let address = Address::new("localhost", 5701);
+
+        let mut writeable = BytesMut::new();
+        address.write_to(&mut writeable);
+
+        let readable = &mut writeable.to_bytes();
+        assert_eq!(Address::read_from(readable), address);
+    }
+}

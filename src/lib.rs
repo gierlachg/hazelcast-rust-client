@@ -11,7 +11,7 @@ mod remote;
 
 pub(crate) type Result<T> = std::result::Result<T, Box<dyn Error + Send + Sync>>;
 
-pub trait TryFrom<T> {
+pub(crate) trait TryFrom<T> {
     type Error;
 
     fn try_from(self) -> std::result::Result<T, Self::Error>;

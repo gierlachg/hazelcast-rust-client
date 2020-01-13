@@ -1,10 +1,10 @@
 use crate::protocol::Address;
 
-const CLIENT_TYPE: &str = "Rust";
-const CLIENT_VERSION: &str = "0.1.0";
-const SERIALIZATION_VERSION: u8 = 1;
+pub(crate) const CLIENT_TYPE: &str = "Rust";
+pub(crate) const CLIENT_VERSION: &str = "0.1.0";
+pub(crate) const SERIALIZATION_VERSION: u8 = 1;
 
-#[derive(Debug)]
+#[derive(Debug, Eq, PartialEq)]
 pub(crate) struct AuthenticationRequest<'a> {
     username: &'a str,
     password: &'a str,
@@ -57,7 +57,7 @@ impl<'a> AuthenticationRequest<'a> {
     }
 }
 
-#[derive(Debug)]
+#[derive(Debug, Eq, PartialEq)]
 pub(crate) struct AuthenticationResponse {
     _status: u8,
     address: Option<Address>,
@@ -99,7 +99,7 @@ impl AuthenticationResponse {
     }
 }
 
-#[derive(Debug)]
+#[derive(Debug, Eq, PartialEq)]
 pub(crate) struct ClusterMember {
     address: Address,
     id: String,
@@ -123,7 +123,7 @@ impl ClusterMember {
     }
 }
 
-#[derive(Debug, Clone)]
+#[derive(Debug, Eq, PartialEq, Clone)]
 pub(crate) struct AttributeEntry {
     _key: String,
     _value: String,

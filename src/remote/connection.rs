@@ -16,15 +16,15 @@ pub(crate) struct Connection {
     // TODO: what is the purpose of it ???
     address: Option<Address>,
 
-    broker: Channel,
+    channel: Channel,
 }
 
 impl Connection {
     pub(crate) async fn create(address: &str, username: &str, password: &str) -> Result<Self> {
-        let mut broker = Channel::connect(address).await?;
+        let mut channel = Channel::connect(address).await?;
 
         let request = AuthenticationRequest::new(username, password).into();
-        let response = broker.send(request).await?;
+        let response = channel.send(request).await?;
 
         match TryFrom::<AuthenticationResponse>::try_from(response) {
             Ok(response) => {
@@ -33,7 +33,7 @@ impl Connection {
                     _id: response.id().clone(),
                     _owner_id: response.owner_id().clone(),
                     address: response.address().clone(),
-                    broker,
+                    channel,
                 })
             }
             Err(exception) => {
@@ -44,7 +44,7 @@ impl Connection {
     }
 
     pub(crate) async fn send(&mut self, message: Message) -> Result<Message> {
-        Ok(self.broker.send(message).await?)
+        Ok(self.channel.send(message).await?)
     }
 
     pub(crate) fn address(&self) -> &Option<Address> {
