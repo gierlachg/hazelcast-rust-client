@@ -1,10 +1,9 @@
-use crate::message::Message;
 use crate::{Result, TryFrom};
-
+use crate::message::Message;
 // TODO: remove dependency to protocol ???
 use crate::protocol::{
-    authentication::{AuthenticationRequest, AuthenticationResponse},
     Address,
+    authentication::{AuthenticationRequest, AuthenticationResponse},
 };
 use crate::remote::channel::Channel;
 
@@ -20,8 +19,8 @@ pub(crate) struct Connection {
 }
 
 impl Connection {
-    pub(crate) async fn create(address: &str, username: &str, password: &str) -> Result<Self> {
-        let channel = Channel::connect(address).await?;
+    pub(crate) async fn new(endpoint: &str, username: &str, password: &str) -> Result<Self> {
+        let channel = Channel::connect(endpoint).await?;
 
         let request = AuthenticationRequest::new(username, password).into();
         let response = channel.send(request).await?;
@@ -37,14 +36,14 @@ impl Connection {
                 })
             }
             Err(exception) => {
-                eprintln!("{}", exception); // TODO: propagate
+                eprintln!("{}", exception); // TODO: propagate ???
                 Err("Unable to create connection.".into())
             }
         }
     }
 
     pub(crate) async fn send(&self, message: Message) -> Result<Message> {
-        Ok(self.channel.send(message).await?)
+        self.channel.send(message).await
     }
 
     pub(crate) fn address(&self) -> &Option<Address> {

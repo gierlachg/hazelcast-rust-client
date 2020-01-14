@@ -5,7 +5,8 @@ use crate::bytes::{Readable, Writeable, Writer};
 use crate::message::Message;
 
 mod channel;
-pub(crate) mod connection;
+pub(crate) mod cluster;
+mod connection;
 
 struct Correlator<T> {
     sequence: u64,

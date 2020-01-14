@@ -1,29 +1,29 @@
 use crate::protocol::Address;
-use crate::remote::connection::Connection;
+use crate::remote::cluster::Cluster;
 use crate::{Result, TryFrom};
 use std::sync::Arc;
 
 pub struct PnCounter {
     name: String,
-    connection: Arc<Connection>,
+    cluster: Arc<Cluster>,
     replica_timestamps: Vec<ReplicaTimestampEntry>,
 }
 
 impl PnCounter {
-    pub(crate) fn new(name: &str, connection: Arc<Connection>) -> Self {
+    pub(crate) fn new(name: &str, cluster: Arc<Cluster>) -> Self {
         PnCounter {
             name: name.to_string(),
-            connection,
+            cluster,
             replica_timestamps: vec![],
         }
     }
 
     pub async fn get(&mut self) -> Result<i64> {
-        let address = self.connection.address().clone().expect("missing address!"); // TODO: not sure where address should come from, what is its purpose....
+        let address = self.cluster.address().clone().expect("missing address!"); // TODO: not sure where address should come from, what is its purpose....
 
         let request =
             PnCounterGetRequest::new(&self.name, &address, &self.replica_timestamps).into();
-        let response = self.connection.send(request).await?;
+        let response = self.cluster.dispatch(request).await?;
 
         match TryFrom::<PnCounterGetResponse>::try_from(response) {
             Ok(response) => {
@@ -46,7 +46,7 @@ impl PnCounter {
     }
 
     async fn add(&mut self, delta: i64, get_before_update: bool) -> Result<i64> {
-        let address = self.connection.address().clone().expect("missing address!"); // TODO: not sure where address should come from, what is its purpose....
+        let address = self.cluster.address().clone().expect("missing address!"); // TODO: not sure where address should come from, what is its purpose....
 
         let request = PnCounterAddRequest::new(
             &self.name,
@@ -56,7 +56,7 @@ impl PnCounter {
             &self.replica_timestamps,
         )
         .into();
-        let response = self.connection.send(request).await?;
+        let response = self.cluster.dispatch(request).await?;
 
         match TryFrom::<PnCounterAddResponse>::try_from(response) {
             Ok(response) => {
@@ -72,7 +72,7 @@ impl PnCounter {
 
     pub async fn replica_count(&mut self) -> Result<u32> {
         let request = PnCounterGetReplicaCountRequest::new(&self.name).into();
-        let response = self.connection.send(request).await?;
+        let response = self.cluster.dispatch(request).await?;
 
         match TryFrom::<PnCounterGetReplicaCountResponse>::try_from(response) {
             Ok(response) => Ok(response.count()),
