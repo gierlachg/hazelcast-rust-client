@@ -1,7 +1,8 @@
-use std::error::Error;
-use std::sync::Arc;
+use std::{error::Error, sync::Arc};
 
-pub use protocol::pn_counter::PnCounter as PnCounter;
+use log::info;
+
+pub use protocol::pn_counter::PnCounter;
 
 use crate::remote::cluster::Cluster;
 
@@ -10,6 +11,9 @@ mod codec;
 mod message;
 mod protocol;
 mod remote;
+
+pub(crate) const CLIENT_TYPE: &str = "Rust";
+pub(crate) const CLIENT_VERSION: &str = "0.1.0-SNAPSHOT";
 
 pub(crate) type Result<T> = std::result::Result<T, Box<dyn Error + Send + Sync>>;
 
@@ -24,10 +28,15 @@ pub struct HazelcastClient {
 }
 
 impl HazelcastClient {
-    pub async fn new<'a, E>(endpoints: E, username: &str, password: &str) -> Result<Self> where
-        E: IntoIterator<Item=&'a str>
+    pub async fn new<'a, E>(endpoints: E, username: &str, password: &str) -> Result<Self>
+    where
+        E: IntoIterator<Item = &'a str>,
     {
-        let cluster = Cluster::new(endpoints, username, password).await?;
+        info!("HazelcastClient {} is STARTING", CLIENT_VERSION);
+        let cluster = Cluster::from(endpoints, username, password).await?;
+        info!("{}", cluster);
+        info!("HazelcastClient is CONNECTED");
+        info!("HazelcastClient is STARTED");
 
         Ok(HazelcastClient {
             cluster: Arc::new(cluster),

@@ -1,9 +1,15 @@
-use std::{convert::TryInto, fmt};
+use std::{
+    convert::TryInto,
+    error::Error,
+    fmt::{self},
+};
 
 use bytes::{Buf, Bytes, BytesMut};
 
-use crate::bytes::{Readable, Reader, Writer};
-use crate::TryFrom;
+use crate::{
+    bytes::{Readable, Reader, Writer},
+    TryFrom,
+};
 
 pub(crate) trait Payload {
     fn r#type() -> u16;
@@ -13,7 +19,7 @@ pub(crate) trait Payload {
     }
 }
 
-#[derive(Debug, Eq, PartialEq)]
+#[derive(Eq, PartialEq)]
 pub(crate) struct Message {
     // TODO: retry-able ???
     message_type: u16,
@@ -44,6 +50,12 @@ impl Message {
 }
 
 impl fmt::Display for Message {
+    fn fmt(&self, formatter: &mut fmt::Formatter<'_>) -> fmt::Result {
+        fmt::Debug::fmt(self, formatter)
+    }
+}
+
+impl fmt::Debug for Message {
     fn fmt(&self, formatter: &mut fmt::Formatter<'_>) -> fmt::Result {
         write!(
             formatter,
@@ -117,7 +129,15 @@ impl Exception {
     }
 }
 
+impl Error for Exception {}
+
 impl fmt::Display for Exception {
+    fn fmt(&self, formatter: &mut fmt::Formatter<'_>) -> fmt::Result {
+        fmt::Debug::fmt(self, formatter)
+    }
+}
+
+impl fmt::Debug for Exception {
     fn fmt(&self, formatter: &mut fmt::Formatter<'_>) -> fmt::Result {
         write!(
             formatter,
@@ -134,42 +154,6 @@ impl fmt::Display for Exception {
             write!(formatter, "\t\t{}\n", stack_trace_entry)?;
         }
         write!(formatter, "}}")
-    }
-}
-
-pub(crate) struct StackTraceEntry {
-    declaring_class: String,
-    method_name: String,
-    file_name: Option<String>,
-    line_number: u32,
-}
-
-impl StackTraceEntry {
-    pub(crate) fn new(
-        declaring_class: &str,
-        method_name: &str,
-        file_name: Option<String>,
-        line_number: u32,
-    ) -> Self {
-        StackTraceEntry {
-            declaring_class: declaring_class.to_string(),
-            method_name: method_name.to_string(),
-            file_name,
-            line_number,
-        }
-    }
-}
-
-impl fmt::Display for StackTraceEntry {
-    fn fmt(&self, formatter: &mut fmt::Formatter<'_>) -> fmt::Result {
-        write!(
-            formatter,
-            "at {}.{}({}:{})",
-            self.declaring_class,
-            self.method_name,
-            self.file_name.as_deref().unwrap_or(""),
-            self.line_number
-        )
     }
 }
 
@@ -230,6 +214,42 @@ impl Reader for Exception {
             stack_trace_entries,
             cause_error_code,
             cause_class_name,
+        )
+    }
+}
+
+pub(crate) struct StackTraceEntry {
+    declaring_class: String,
+    method_name: String,
+    file_name: Option<String>,
+    line_number: u32,
+}
+
+impl StackTraceEntry {
+    pub(crate) fn new(
+        declaring_class: &str,
+        method_name: &str,
+        file_name: Option<String>,
+        line_number: u32,
+    ) -> Self {
+        StackTraceEntry {
+            declaring_class: declaring_class.to_string(),
+            method_name: method_name.to_string(),
+            file_name,
+            line_number,
+        }
+    }
+}
+
+impl fmt::Display for StackTraceEntry {
+    fn fmt(&self, formatter: &mut fmt::Formatter<'_>) -> fmt::Result {
+        write!(
+            formatter,
+            "at {}.{}({}:{})",
+            self.declaring_class,
+            self.method_name,
+            self.file_name.as_deref().unwrap_or(""),
+            self.line_number
         )
     }
 }

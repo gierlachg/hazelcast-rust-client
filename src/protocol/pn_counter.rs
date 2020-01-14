@@ -1,6 +1,8 @@
-use crate::protocol::Address;
-use crate::remote::cluster::Cluster;
-use crate::{Result, TryFrom};
+use crate::{
+    protocol::Address,
+    remote::cluster::Cluster,
+    {Result, TryFrom},
+};
 use std::sync::Arc;
 
 pub struct PnCounter {
@@ -31,7 +33,7 @@ impl PnCounter {
                 Ok(response.value())
             }
             Err(exception) => {
-                eprintln!("{}", exception);
+                eprintln!("{}", exception); // TODO: propagate ???
                 Err("Unable to fetch counter value.".into())
             }
         }
@@ -64,7 +66,7 @@ impl PnCounter {
                 Ok(response.value())
             }
             Err(exception) => {
-                eprintln!("{}", exception);
+                eprintln!("{}", exception); // TODO: propagate ???
                 Err("Unable to add to counter.".into())
             }
         }
@@ -77,10 +79,14 @@ impl PnCounter {
         match TryFrom::<PnCounterGetReplicaCountResponse>::try_from(response) {
             Ok(response) => Ok(response.count()),
             Err(exception) => {
-                eprintln!("{}", exception);
+                eprintln!("{}", exception); // TODO: propagate ???
                 Err("Unable to fetch replica count for counter.".into())
             }
         }
+    }
+
+    pub fn name(&self) -> &str {
+        &self.name
     }
 }
 

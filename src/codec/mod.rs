@@ -1,5 +1,7 @@
-use crate::bytes::{Readable, Reader, Writeable, Writer};
-use crate::protocol::Address;
+use crate::{
+    bytes::{Readable, Reader, Writeable, Writer},
+    protocol::Address,
+};
 
 mod authentication;
 mod pn_counter;

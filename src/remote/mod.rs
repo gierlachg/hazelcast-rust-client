@@ -1,12 +1,13 @@
-use std::collections::HashMap;
-use std::convert::TryInto;
+use std::{collections::HashMap, convert::TryInto};
 
-use crate::bytes::{Readable, Writeable, Writer};
-use crate::message::Message;
+use crate::{
+    bytes::{Readable, Writeable, Writer},
+    message::Message,
+};
 
 mod channel;
 pub(crate) mod cluster;
-mod connection;
+mod member;
 
 struct Correlator<T> {
     sequence: u64,

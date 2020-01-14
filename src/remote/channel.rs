@@ -1,9 +1,12 @@
-use std::future::Future;
-use std::pin::Pin;
-use std::task::{Context, Poll};
+use std::{
+    future::Future,
+    pin::Pin,
+    task::{Context, Poll},
+};
 
 use bytes::{Buf, BytesMut};
 use futures::SinkExt;
+use log::error;
 use tokio::{
     net::{tcp::ReadHalf, TcpStream},
     prelude::*,
@@ -13,12 +16,14 @@ use tokio::{
 };
 use tokio_util::codec::{FramedRead, LengthDelimitedCodec};
 
-use crate::message::Message;
-use crate::remote::{
-    Correlator, FrameCodec, LENGTH_FIELD_ADJUSTMENT, LENGTH_FIELD_LENGTH, LENGTH_FIELD_OFFSET,
-    PROTOCOL_SEQUENCE,
+use crate::{
+    message::Message,
+    remote::{
+        Correlator, FrameCodec, LENGTH_FIELD_ADJUSTMENT, LENGTH_FIELD_LENGTH, LENGTH_FIELD_OFFSET,
+        PROTOCOL_SEQUENCE,
+    },
+    Result,
 };
-use crate::Result;
 
 type Responder = oneshot::Sender<Message>;
 
@@ -77,8 +82,8 @@ impl Channel {
                             _ => {} // TODO:
                         }
                     }
-                    Err(error) => {
-                        return Err(error);
+                    Err(e) => {
+                        return Err(e);
                     }
                 }
             }
@@ -121,7 +126,7 @@ impl Stream for Broker<'_> {
         let result: Option<_> = futures::ready!(Pin::new(&mut self.ingress).poll_next(cx));
         Poll::Ready(match result {
             Some(Ok(frame)) => Some(Ok(Event::Ingress(frame))),
-            Some(Err(error)) => Some(Err(error.into())),
+            Some(Err(e)) => Some(Err(e.into())),
             None => None,
         })
     }
@@ -133,7 +138,7 @@ where
 {
     tokio::spawn(async move {
         if let Err(e) = future.await {
-            eprintln!("Unexpected error occurred - {}", e)
+            error!("Unexpected error occurred - {}", e)
         }
     })
 }

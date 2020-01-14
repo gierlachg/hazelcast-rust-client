@@ -1,11 +1,13 @@
 use std::convert::TryInto;
 
-use crate::bytes::{Readable, Reader, Writeable, Writer};
-use crate::message::Payload;
-use crate::protocol::pn_counter::{
-    PnCounterAddRequest, PnCounterAddResponse, PnCounterGetReplicaCountRequest,
-    PnCounterGetReplicaCountResponse, PnCounterGetRequest, PnCounterGetResponse,
-    ReplicaTimestampEntry,
+use crate::{
+    bytes::{Readable, Reader, Writeable, Writer},
+    message::Payload,
+    protocol::pn_counter::{
+        PnCounterAddRequest, PnCounterAddResponse, PnCounterGetReplicaCountRequest,
+        PnCounterGetReplicaCountResponse, PnCounterGetRequest, PnCounterGetResponse,
+        ReplicaTimestampEntry,
+    },
 };
 
 const GET_REQUEST_MESSAGE_TYPE: u16 = 0x2001;

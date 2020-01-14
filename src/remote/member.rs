@@ -1,25 +1,30 @@
-use crate::{Result, TryFrom};
-use crate::message::Message;
-// TODO: remove dependency to protocol ???
-use crate::protocol::{
-    Address,
-    authentication::{AuthenticationRequest, AuthenticationResponse},
-};
-use crate::remote::channel::Channel;
+use std::fmt::{self, Display, Formatter};
 
-pub(crate) struct Connection {
+use crate::{
+    // TODO: remove dependency to protocol ???
+    message::Message,
+    protocol::{
+        authentication::{AuthenticationRequest, AuthenticationResponse},
+        Address,
+    },
+    remote::channel::Channel,
+    {Result, TryFrom},
+};
+
+pub(crate) struct Member {
     // TODO: what is the purpose of it ???
     _id: Option<String>,
     // TODO: what is the purpose of it ???
-    _owner_id: Option<String>,
+    owner_id: Option<String>,
     // TODO: what is the purpose of it ???
     address: Option<Address>,
 
+    endpoint: String,
     channel: Channel,
 }
 
-impl Connection {
-    pub(crate) async fn new(endpoint: &str, username: &str, password: &str) -> Result<Self> {
+impl Member {
+    pub(crate) async fn connect(endpoint: &str, username: &str, password: &str) -> Result<Self> {
         let channel = Channel::connect(endpoint).await?;
 
         let request = AuthenticationRequest::new(username, password).into();
@@ -28,10 +33,11 @@ impl Connection {
         match TryFrom::<AuthenticationResponse>::try_from(response) {
             Ok(response) => {
                 // TODO: check status & serialization version ???
-                Ok(Connection {
+                Ok(Member {
                     _id: response.id().clone(),
-                    _owner_id: response.owner_id().clone(),
-                    address: response.address().clone(),
+                    owner_id: response.owner_id().clone(),
+                    address: response.address().clone(), // TODO: is it the same as endpoint ???
+                    endpoint: endpoint.to_string(),
                     channel,
                 })
             }
@@ -48,5 +54,11 @@ impl Connection {
 
     pub(crate) fn address(&self) -> &Option<Address> {
         &self.address
+    }
+}
+
+impl Display for Member {
+    fn fmt(&self, formatter: &mut Formatter<'_>) -> fmt::Result {
+        write!(formatter, "Member {} - {:?}", self.endpoint, self.owner_id)
     }
 }

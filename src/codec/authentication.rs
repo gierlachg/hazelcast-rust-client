@@ -1,12 +1,14 @@
 use std::convert::TryInto;
 
-use crate::bytes::{Readable, Reader, Writeable, Writer};
-use crate::message::Payload;
-use crate::protocol::{
-    authentication::{
-        AttributeEntry, AuthenticationRequest, AuthenticationResponse, ClusterMember,
+use crate::{
+    bytes::{Readable, Reader, Writeable, Writer},
+    message::Payload,
+    protocol::{
+        authentication::{
+            AttributeEntry, AuthenticationRequest, AuthenticationResponse, ClusterMember,
+        },
+        Address,
     },
-    Address,
 };
 
 const AUTHENTICATION_REQUEST_MESSAGE_TYPE: u16 = 0x2;
@@ -118,7 +120,7 @@ mod tests {
     use bytes::{Buf, BytesMut};
 
     use super::*;
-    use crate::protocol::authentication::{CLIENT_TYPE, CLIENT_VERSION, SERIALIZATION_VERSION};
+    use crate::{protocol::authentication::SERIALIZATION_VERSION, CLIENT_TYPE, CLIENT_VERSION};
 
     #[test]
     fn should_write_authentication_request() {

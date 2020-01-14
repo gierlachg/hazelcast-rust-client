@@ -1,43 +1,62 @@
-use std::sync::atomic::{AtomicUsize, Ordering};
+use std::{
+    fmt::{self, Display, Formatter},
+    sync::atomic::{AtomicUsize, Ordering},
+};
 
-use crate::message::Message;
-use crate::protocol::Address;
-use crate::remote::connection::Connection;
-use crate::Result;
+use log::{error, info};
+
+use crate::{message::Message, protocol::Address, remote::member::Member, Result};
 
 pub(crate) struct Cluster {
     counter: AtomicUsize,
-    connections: Vec<Connection>,
+    members: Vec<Member>,
 }
 
 impl Cluster {
-    pub(crate) async fn new<'a, E>(endpoints: E, username: &str, password: &str) -> Result<Self>
-        where E: IntoIterator<Item=&'a str>
+    pub(crate) async fn from<'a, E>(endpoints: E, username: &str, password: &str) -> Result<Self>
+    where
+        E: IntoIterator<Item = &'a str>,
     {
-        let mut connections = vec!();
+        let mut members = vec![];
         for endpoint in endpoints {
-            match Connection::new(endpoint, username, password).await {
-                Ok(connection) => connections.push(connection),
-                Err(_) => {} // TODO: log ???
+            info!("Trying to connect to {} as owner member.", endpoint);
+            match Member::connect(endpoint, username, password).await {
+                Ok(member) => members.push(member),
+                Err(e) => error!("Failed to connect to {} - {}", endpoint, e),
             }
         }
 
-        if connections.is_empty() {
+        if members.is_empty() {
             Err("Unable to connect any member.".into())
         } else {
             Ok(Cluster {
                 counter: AtomicUsize::new(0),
-                connections,
+                members,
             })
         }
     }
 
-    pub(crate) async fn dispatch(&self, message: Message) -> Result<Message> { // TODO: accepting & dispatching by address ???
+    pub(crate) async fn dispatch(&self, message: Message) -> Result<Message> {
+        // TODO: accepting & dispatching by address ???
         let value = self.counter.fetch_add(1, Ordering::SeqCst);
-        self.connections[value % self.connections.len()].send(message).await
+        self.members[value % self.members.len()].send(message).await
     }
 
     pub(crate) fn address(&self) -> &Option<Address> {
-        &self.connections[0].address() // TODO: ???
+        &self.members[0].address() // TODO: ???
+    }
+}
+
+impl Display for Cluster {
+    fn fmt(&self, formatter: &mut Formatter<'_>) -> fmt::Result {
+        write!(
+            formatter,
+            "\n\nMembers {{size: {}}} [\n",
+            self.members.len(),
+        )?;
+        for member in &self.members {
+            write!(formatter, "\t{}\n", member)?;
+        }
+        write!(formatter, "]\n")
     }
 }
