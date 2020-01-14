@@ -81,7 +81,7 @@ impl<T> TryFrom<T> for Message
 where
     T: Payload + Reader,
 {
-    type Error = Exception;
+    type Error = Box<dyn Error + Send + Sync>;
 
     fn try_from(self) -> Result<T, Self::Error> {
         let readable = &mut self.payload();
@@ -95,7 +95,7 @@ where
                 self.message_type(),
                 T::r#type()
             );
-            Err(Exception::read_from(readable))
+            Err(Box::new(Exception::read_from(readable)))
         }
     }
 }

@@ -1,9 +1,6 @@
-use crate::{
-    protocol::Address,
-    remote::cluster::Cluster,
-    {Result, TryFrom},
-};
 use std::sync::Arc;
+
+use crate::{protocol::Address, remote::cluster::Cluster, Result};
 
 pub struct PnCounter {
     name: String,
@@ -25,18 +22,9 @@ impl PnCounter {
 
         let request =
             PnCounterGetRequest::new(&self.name, &address, &self.replica_timestamps).into();
-        let response = self.cluster.dispatch(request).await?;
-
-        match TryFrom::<PnCounterGetResponse>::try_from(response) {
-            Ok(response) => {
-                self.replica_timestamps = response.replica_timestamps().to_vec();
-                Ok(response.value())
-            }
-            Err(exception) => {
-                eprintln!("{}", exception); // TODO: propagate ???
-                Err("Unable to fetch counter value.".into())
-            }
-        }
+        let response: PnCounterGetResponse = self.cluster.dispatch(request).await?;
+        self.replica_timestamps = response.replica_timestamps().to_vec();
+        Ok(response.value())
     }
 
     pub async fn get_and_add(&mut self, delta: i64) -> Result<i64> {
@@ -58,31 +46,15 @@ impl PnCounter {
             &self.replica_timestamps,
         )
         .into();
-        let response = self.cluster.dispatch(request).await?;
-
-        match TryFrom::<PnCounterAddResponse>::try_from(response) {
-            Ok(response) => {
-                self.replica_timestamps = response.replica_timestamps().to_vec();
-                Ok(response.value())
-            }
-            Err(exception) => {
-                eprintln!("{}", exception); // TODO: propagate ???
-                Err("Unable to add to counter.".into())
-            }
-        }
+        let response: PnCounterAddResponse = self.cluster.dispatch(request).await?;
+        self.replica_timestamps = response.replica_timestamps().to_vec();
+        Ok(response.value())
     }
 
     pub async fn replica_count(&mut self) -> Result<u32> {
         let request = PnCounterGetReplicaCountRequest::new(&self.name).into();
-        let response = self.cluster.dispatch(request).await?;
-
-        match TryFrom::<PnCounterGetReplicaCountResponse>::try_from(response) {
-            Ok(response) => Ok(response.count()),
-            Err(exception) => {
-                eprintln!("{}", exception); // TODO: propagate ???
-                Err("Unable to fetch replica count for counter.".into())
-            }
-        }
+        let response: PnCounterGetReplicaCountResponse = self.cluster.dispatch(request).await?;
+        Ok(response.count())
     }
 
     pub fn name(&self) -> &str {

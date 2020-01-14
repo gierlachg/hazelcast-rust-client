@@ -5,7 +5,13 @@ use std::{
 
 use log::{error, info};
 
-use crate::{message::Message, protocol::Address, remote::member::Member, Result};
+use crate::{
+    bytes::Reader,
+    message::{Message, Payload},
+    protocol::Address,
+    remote::member::Member,
+    Result, TryFrom,
+};
 
 pub(crate) struct Cluster {
     counter: AtomicUsize,
@@ -13,7 +19,7 @@ pub(crate) struct Cluster {
 }
 
 impl Cluster {
-    pub(crate) async fn from<'a, E>(endpoints: E, username: &str, password: &str) -> Result<Self>
+    pub(crate) async fn connect<'a, E>(endpoints: E, username: &str, password: &str) -> Result<Self>
     where
         E: IntoIterator<Item = &'a str>,
     {
@@ -36,10 +42,16 @@ impl Cluster {
         }
     }
 
-    pub(crate) async fn dispatch(&self, message: Message) -> Result<Message> {
+    pub(crate) async fn dispatch<R>(&self, message: Message) -> Result<R>
+    where
+        R: Payload + Reader,
+    {
         // TODO: accepting & dispatching by address ???
         let value = self.counter.fetch_add(1, Ordering::SeqCst);
-        self.members[value % self.members.len()].send(message).await
+        match self.members[value % self.members.len()].send(message).await {
+            Ok(message) => TryFrom::<R>::try_from(message),
+            Err(e) => Err(e), // TODO:
+        }
     }
 
     pub(crate) fn address(&self) -> &Option<Address> {

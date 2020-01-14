@@ -30,7 +30,7 @@ impl HazelcastClient {
         E: IntoIterator<Item = &'a str>,
     {
         info!("HazelcastClient {} is STARTING", CLIENT_VERSION);
-        let cluster = Cluster::from(endpoints, username, password).await?;
+        let cluster = Cluster::connect(endpoints, username, password).await?;
         info!("{}", cluster);
         info!("HazelcastClient is CONNECTED");
         info!("HazelcastClient is STARTED");
