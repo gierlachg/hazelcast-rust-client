@@ -84,6 +84,30 @@ mod tests {
     use super::*;
 
     #[test]
+    fn should_not_retrieve_anything_for_unknown_id() {
+        let mut correlator: Correlator<String> = Correlator::new();
+
+        assert_eq!(correlator.get(&1), None);
+    }
+
+    #[test]
+    fn should_retrieve_for_known_id() {
+        let mut correlator = Correlator::new();
+
+        let id = correlator.set("data".to_string());
+
+        assert_eq!(correlator.get(&id), Some("data".to_string()));
+    }
+
+    #[test]
+    fn should_generate_unique_ids() {
+        let mut correlator = Correlator::new();
+
+        assert_eq!(correlator.set("data".to_string()), 1);
+        assert_eq!(correlator.set("data".to_string()), 2);
+    }
+
+    #[test]
     fn should_encode_and_decode_message() {
         let correlation_id = 13;
         let message = Message::new(1, 2, Bytes::from(vec![3]));
