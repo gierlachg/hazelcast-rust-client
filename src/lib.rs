@@ -12,9 +12,9 @@ mod message;
 mod protocol;
 mod remote;
 
-pub(crate) type Result<T> = std::result::Result<T, Box<dyn Error + Send + Sync>>;
+type Result<T> = std::result::Result<T, Box<dyn Error + Send + Sync>>;
 
-pub(crate) trait TryFrom<T> {
+trait TryFrom<T> {
     type Error;
 
     fn try_from(self) -> std::result::Result<T, Self::Error>;

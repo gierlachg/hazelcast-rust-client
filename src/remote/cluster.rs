@@ -8,9 +8,11 @@ use log::{error, info};
 use crate::{
     bytes::Reader,
     message::{Message, Payload},
+    // TODO: remove dependency to protocol ???
     protocol::Address,
     remote::member::Member,
-    Result, TryFrom,
+    Result,
+    TryFrom,
 };
 
 pub(crate) struct Cluster {

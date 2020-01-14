@@ -32,12 +32,12 @@ enum Event {
     Ingress(BytesMut),
 }
 
-pub(crate) struct Channel {
+pub(in crate::remote) struct Channel {
     egress: mpsc::UnboundedSender<(Message, Responder)>,
 }
 
 impl Channel {
-    pub(crate) async fn connect(address: &str) -> Result<Self> {
+    pub(in crate::remote) async fn connect(address: &str) -> Result<Self> {
         let mut stream = TcpStream::connect(address).await?;
         stream.write_all(&PROTOCOL_SEQUENCE).await?;
 
@@ -93,7 +93,7 @@ impl Channel {
         Ok(Channel { egress })
     }
 
-    pub(crate) async fn send(&self, egress: Message) -> Result<Message> {
+    pub(in crate::remote) async fn send(&self, egress: Message) -> Result<Message> {
         let (sender, receiver) = oneshot::channel();
         self.egress.send((egress, sender))?;
         let ingress = receiver.await?;

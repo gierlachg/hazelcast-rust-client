@@ -11,7 +11,7 @@ use crate::{
     {Result, TryFrom},
 };
 
-pub(crate) struct Member {
+pub(in crate::remote) struct Member {
     // TODO: what is the purpose of it ???
     _id: Option<String>,
     // TODO: what is the purpose of it ???
@@ -24,7 +24,11 @@ pub(crate) struct Member {
 }
 
 impl Member {
-    pub(crate) async fn connect(endpoint: &str, username: &str, password: &str) -> Result<Self> {
+    pub(in crate::remote) async fn connect(
+        endpoint: &str,
+        username: &str,
+        password: &str,
+    ) -> Result<Self> {
         let channel = Channel::connect(endpoint).await?;
 
         let request = AuthenticationRequest::new(username, password).into();
@@ -48,11 +52,11 @@ impl Member {
         }
     }
 
-    pub(crate) async fn send(&self, message: Message) -> Result<Message> {
+    pub(in crate::remote) async fn send(&self, message: Message) -> Result<Message> {
         self.channel.send(message).await
     }
 
-    pub(crate) fn address(&self) -> &Option<Address> {
+    pub(in crate::remote) fn address(&self) -> &Option<Address> {
         &self.address
     }
 }
