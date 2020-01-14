@@ -1,5 +1,7 @@
-use crate::{protocol::Address, CLIENT_TYPE, CLIENT_VERSION};
+use crate::protocol::Address;
 
+pub(crate) const CLIENT_TYPE: &str = "Rust";
+pub(crate) const CLIENT_VERSION: &str = "0.1.0-SNAPSHOT";
 pub(crate) const SERIALIZATION_VERSION: u8 = 1;
 
 #[derive(Debug, Eq, PartialEq)]

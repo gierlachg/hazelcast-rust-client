@@ -4,16 +4,13 @@ use log::info;
 
 pub use protocol::pn_counter::PnCounter;
 
-use crate::remote::cluster::Cluster;
+use crate::{protocol::authentication::CLIENT_VERSION, remote::cluster::Cluster};
 
 mod bytes;
 mod codec;
 mod message;
 mod protocol;
 mod remote;
-
-pub(crate) const CLIENT_TYPE: &str = "Rust";
-pub(crate) const CLIENT_VERSION: &str = "0.1.0-SNAPSHOT";
 
 pub(crate) type Result<T> = std::result::Result<T, Box<dyn Error + Send + Sync>>;
 

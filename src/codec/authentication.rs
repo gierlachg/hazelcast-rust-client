@@ -120,7 +120,7 @@ mod tests {
     use bytes::{Buf, BytesMut};
 
     use super::*;
-    use crate::{protocol::authentication::SERIALIZATION_VERSION, CLIENT_TYPE, CLIENT_VERSION};
+    use crate::protocol::authentication::{CLIENT_TYPE, CLIENT_VERSION, SERIALIZATION_VERSION};
 
     #[test]
     fn should_write_authentication_request() {
