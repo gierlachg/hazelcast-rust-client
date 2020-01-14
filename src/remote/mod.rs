@@ -21,7 +21,7 @@ impl<T> Correlator<T> {
     }
 
     fn set(&mut self, value: T) -> u64 {
-        self.sequence += self.sequence + 1;
+        self.sequence += 1;
         self.correlations.insert(self.sequence, value);
         self.sequence
     }
