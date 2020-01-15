@@ -33,19 +33,14 @@ async fn main() -> Result<(), Box<dyn Error + Send + Sync>> {
 fn counter_name() -> String {
     format!(
         "my-counter-{}",
-        thread_rng()
-            .sample_iter(&Alphanumeric)
-            .take(8)
-            .collect::<String>()
+        thread_rng().sample_iter(&Alphanumeric).take(8).collect::<String>()
     )
 }
 
 fn init_logger() {
     let _ = log4rs::init_config(
         Config::builder()
-            .appender(
-                Appender::builder().build("stdout", Box::new(ConsoleAppender::builder().build())),
-            )
+            .appender(Appender::builder().build("stdout", Box::new(ConsoleAppender::builder().build())))
             .build(Root::builder().appender("stdout").build(LevelFilter::Info))
             .unwrap(),
     )

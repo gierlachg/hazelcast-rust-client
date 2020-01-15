@@ -50,10 +50,7 @@ impl Cluster {
         O: Payload + Reader,
     {
         let index = self.counter.fetch_add(1, Ordering::SeqCst);
-        match self.members[index % self.members.len()]
-            .send(message.into())
-            .await
-        {
+        match self.members[index % self.members.len()].send(message.into()).await {
             Ok(message) => TryFrom::<O>::try_from(message),
             Err(e) => Err(e),
         }
@@ -66,11 +63,7 @@ impl Cluster {
 
 impl fmt::Display for Cluster {
     fn fmt(&self, formatter: &mut fmt::Formatter<'_>) -> fmt::Result {
-        write!(
-            formatter,
-            "\n\nMembers {{size: {}}} [\n",
-            self.members.len(),
-        )?;
+        write!(formatter, "\n\nMembers {{size: {}}} [\n", self.members.len(),)?;
         for member in &self.members {
             write!(formatter, "\t{}\n", member)?;
         }

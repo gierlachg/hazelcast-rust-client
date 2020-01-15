@@ -199,9 +199,7 @@ impl<T: Reader> Reader for Option<T> {
 
 impl<T: Reader> Reader for Vec<T> {
     fn read_from(readable: &mut dyn Readable) -> Self {
-        let len = u32::read_from(readable)
-            .try_into()
-            .expect("unable to convert!");
+        let len = u32::read_from(readable).try_into().expect("unable to convert!");
         let mut items = Vec::with_capacity(len);
         for _ in 0..len {
             items.push(T::read_from(readable));

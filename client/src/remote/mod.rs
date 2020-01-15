@@ -74,10 +74,7 @@ impl MessageCodec {
         frame.skip(data_offset - HEADER_LENGTH);
         let payload = frame.read();
 
-        (
-            Message::new(message_type, partition_id, payload),
-            correlation_id,
-        )
+        (Message::new(message_type, partition_id, payload), correlation_id)
     }
 }
 
@@ -132,9 +129,6 @@ mod tests {
         );
 
         let mut readable = writeable.to_bytes();
-        assert_eq!(
-            MessageCodec::decode(&mut readable),
-            (message, correlation_id)
-        );
+        assert_eq!(MessageCodec::decode(&mut readable), (message, correlation_id));
     }
 }

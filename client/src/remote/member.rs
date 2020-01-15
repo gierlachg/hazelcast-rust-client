@@ -24,21 +24,11 @@ pub(in crate::remote) struct Member {
 }
 
 impl Member {
-    pub(in crate::remote) async fn connect(
-        endpoint: &str,
-        username: &str,
-        password: &str,
-    ) -> Result<Self> {
+    pub(in crate::remote) async fn connect(endpoint: &str, username: &str, password: &str) -> Result<Self> {
         let channel = Channel::connect(endpoint).await?;
 
-        let request = AuthenticationRequest::new(
-            username,
-            password,
-            CLIENT_TYPE,
-            PROTOCOL_VERSION,
-            CLIENT_VERSION,
-        )
-        .into();
+        let request =
+            AuthenticationRequest::new(username, password, CLIENT_TYPE, PROTOCOL_VERSION, CLIENT_VERSION).into();
         let response = channel.send(request).await?;
 
         let authentication = TryFrom::<AuthenticationResponse>::try_from(response)?;

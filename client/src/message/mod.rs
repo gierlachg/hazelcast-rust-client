@@ -96,6 +96,8 @@ where
     }
 }
 
+const EXCEPTION_MESSAGE_TYPE: u16 = 0x6D;
+
 #[derive(Reader)]
 pub(crate) struct Exception {
     code: i32,
@@ -133,8 +135,6 @@ impl fmt::Debug for Exception {
         write!(formatter, "}}")
     }
 }
-
-const EXCEPTION_MESSAGE_TYPE: u16 = 0x6D;
 
 impl Payload for Exception {
     fn r#type() -> u16 {

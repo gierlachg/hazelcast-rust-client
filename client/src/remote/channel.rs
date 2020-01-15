@@ -19,8 +19,7 @@ use tokio_util::codec::{FramedRead, LengthDelimitedCodec};
 use crate::{
     message::Message,
     remote::{
-        Correlator, MessageCodec, LENGTH_FIELD_ADJUSTMENT, LENGTH_FIELD_LENGTH,
-        LENGTH_FIELD_OFFSET, PROTOCOL_SEQUENCE,
+        Correlator, MessageCodec, LENGTH_FIELD_ADJUSTMENT, LENGTH_FIELD_LENGTH, LENGTH_FIELD_OFFSET, PROTOCOL_SEQUENCE,
     },
     Result,
 };

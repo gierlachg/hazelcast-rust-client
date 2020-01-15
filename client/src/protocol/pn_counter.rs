@@ -52,13 +52,8 @@ impl PnCounter {
     async fn add(&mut self, delta: i64, get_before_update: bool) -> Result<i64> {
         let address = self.cluster.address().clone().expect("missing address!"); // TODO: not sure where address should come from, what is its purpose....
 
-        let request = PnCounterAddRequest::new(
-            &self.name,
-            delta,
-            get_before_update,
-            &self.replica_timestamps,
-            &address,
-        );
+        let request =
+            PnCounterAddRequest::new(&self.name, delta, get_before_update, &self.replica_timestamps, &address);
         let response: PnCounterAddResponse = self.cluster.dispatch(request).await?;
         self.replica_timestamps = response.replica_timestamps().to_vec();
         Ok(response.value())
@@ -83,11 +78,7 @@ pub(crate) struct PnCounterGetRequest<'a> {
 }
 
 impl<'a> PnCounterGetRequest<'a> {
-    pub(crate) fn new(
-        name: &'a str,
-        replica_timestamps: &'a [ReplicaTimestampEntry],
-        address: &'a Address,
-    ) -> Self {
+    pub(crate) fn new(name: &'a str, replica_timestamps: &'a [ReplicaTimestampEntry], address: &'a Address) -> Self {
         PnCounterGetRequest {
             name,
             address,
@@ -275,7 +266,7 @@ mod tests {
             PnCounterGetResponse::read_from(readable),
             PnCounterGetResponse {
                 value,
-                replica_timestamps,
+                replica_timestamps
             }
         );
     }
@@ -290,8 +281,7 @@ mod tests {
             key: "key".to_string(),
             value: 69,
         }];
-        let request =
-            PnCounterAddRequest::new("counter-name", -13, true, &replica_timestamps, &address);
+        let request = PnCounterAddRequest::new("counter-name", -13, true, &replica_timestamps, &address);
 
         let mut writeable = BytesMut::new();
         request.write_to(&mut writeable);
@@ -361,7 +351,7 @@ mod tests {
             ReplicaTimestampEntry::read_from(readable),
             ReplicaTimestampEntry {
                 key: key.to_string(),
-                value,
+                value
             }
         );
     }
