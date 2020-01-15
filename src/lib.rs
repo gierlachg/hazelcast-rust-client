@@ -4,7 +4,7 @@ use log::info;
 
 pub use protocol::pn_counter::PnCounter;
 
-use crate::remote::{cluster::Cluster, CLIENT_VERSION};
+use crate::remote::cluster::Cluster;
 
 mod bytes;
 mod codec;
@@ -29,7 +29,7 @@ impl HazelcastClient {
     where
         E: IntoIterator<Item = &'a str>,
     {
-        info!("HazelcastClient {} is STARTING", CLIENT_VERSION);
+        info!("HazelcastClient {} is STARTING", env!("CARGO_PKG_VERSION"));
         let cluster = Cluster::connect(endpoints, username, password).await?;
         info!("{}", cluster);
         info!("HazelcastClient is CONNECTED");
