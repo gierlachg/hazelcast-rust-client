@@ -1,6 +1,11 @@
 use std::sync::Arc;
 
-use crate::{protocol::Address, remote::cluster::Cluster, Result};
+use crate::{
+    bytes::{Readable, Reader, Writeable, Writer},
+    protocol::Address,
+    remote::cluster::Cluster,
+    Result,
+};
 
 pub struct PnCounter {
     name: String,
@@ -20,7 +25,7 @@ impl PnCounter {
     pub async fn get(&mut self) -> Result<i64> {
         let address = self.cluster.address().clone().expect("missing address!"); // TODO: not sure where address should come from, what is its purpose....
 
-        let request = PnCounterGetRequest::new(&self.name, &address, &self.replica_timestamps);
+        let request = PnCounterGetRequest::new(&self.name, &self.replica_timestamps, &address);
         let response: PnCounterGetResponse = self.cluster.dispatch(request).await?;
         self.replica_timestamps = response.replica_timestamps().to_vec();
         Ok(response.value())
@@ -39,10 +44,10 @@ impl PnCounter {
 
         let request = PnCounterAddRequest::new(
             &self.name,
-            &address,
             delta,
             get_before_update,
             &self.replica_timestamps,
+            &address,
         );
         let response: PnCounterAddResponse = self.cluster.dispatch(request).await?;
         self.replica_timestamps = response.replica_timestamps().to_vec();
@@ -60,18 +65,19 @@ impl PnCounter {
     }
 }
 
-#[derive(Debug, Eq, PartialEq)]
+#[derive(Debug, Eq, PartialEq, Writer)]
 pub(crate) struct PnCounterGetRequest<'a> {
     name: &'a str,
-    address: &'a Address,
     replica_timestamps: &'a [ReplicaTimestampEntry],
+    address: &'a Address,
 }
 
+#[allow(dead_code)]
 impl<'a> PnCounterGetRequest<'a> {
     pub(crate) fn new(
         name: &'a str,
-        address: &'a Address,
         replica_timestamps: &'a [ReplicaTimestampEntry],
+        address: &'a Address,
     ) -> Self {
         PnCounterGetRequest {
             name,
@@ -84,26 +90,26 @@ impl<'a> PnCounterGetRequest<'a> {
         self.name
     }
 
-    pub(crate) fn address(&self) -> &Address {
-        self.address
-    }
-
     pub(crate) fn replica_timestamps(&self) -> &[ReplicaTimestampEntry] {
         self.replica_timestamps
     }
+
+    pub(crate) fn address(&self) -> &Address {
+        self.address
+    }
 }
 
-#[derive(Debug, Eq, PartialEq)]
+#[derive(Debug, Eq, PartialEq, Reader)]
 pub(crate) struct PnCounterGetResponse {
     value: i64,
     replica_timestamps: Vec<ReplicaTimestampEntry>,
 }
 
 impl PnCounterGetResponse {
-    pub(crate) fn new(value: i64, replica_timestamps: &[ReplicaTimestampEntry]) -> Self {
+    pub(crate) fn new(value: i64, replica_timestamps: Vec<ReplicaTimestampEntry>) -> Self {
         PnCounterGetResponse {
             value,
-            replica_timestamps: replica_timestamps.to_vec(),
+            replica_timestamps,
         }
     }
 
@@ -116,22 +122,23 @@ impl PnCounterGetResponse {
     }
 }
 
-#[derive(Debug, Eq, PartialEq)]
+#[derive(Debug, Eq, PartialEq, Writer)]
 pub(crate) struct PnCounterAddRequest<'a> {
     name: &'a str,
-    address: &'a Address,
-    get_before_update: bool,
     delta: i64,
+    get_before_update: bool,
     replica_timestamps: &'a [ReplicaTimestampEntry],
+    address: &'a Address,
 }
 
+#[allow(dead_code)]
 impl<'a> PnCounterAddRequest<'a> {
     pub(crate) fn new(
         name: &'a str,
-        address: &'a Address,
         delta: i64,
         get_before_update: bool,
         replica_timestamps: &'a [ReplicaTimestampEntry],
+        address: &'a Address,
     ) -> Self {
         PnCounterAddRequest {
             name,
@@ -146,10 +153,6 @@ impl<'a> PnCounterAddRequest<'a> {
         self.name
     }
 
-    pub(crate) fn address(&self) -> &Address {
-        self.address
-    }
-
     pub(crate) fn delta(&self) -> i64 {
         self.delta
     }
@@ -161,9 +164,13 @@ impl<'a> PnCounterAddRequest<'a> {
     pub(crate) fn replica_timestamps(&self) -> &[ReplicaTimestampEntry] {
         self.replica_timestamps
     }
+
+    pub(crate) fn address(&self) -> &Address {
+        self.address
+    }
 }
 
-#[derive(Debug, Eq, PartialEq)]
+#[derive(Debug, Eq, PartialEq, Reader)]
 pub(crate) struct PnCounterAddResponse {
     value: i64,
     replica_timestamps: Vec<ReplicaTimestampEntry>,
@@ -173,12 +180,12 @@ pub(crate) struct PnCounterAddResponse {
 impl PnCounterAddResponse {
     pub(crate) fn new(
         value: i64,
-        replica_timestamps: &[ReplicaTimestampEntry],
+        replica_timestamps: Vec<ReplicaTimestampEntry>,
         replica_count: u32,
     ) -> Self {
         PnCounterAddResponse {
             value,
-            replica_timestamps: replica_timestamps.to_vec(),
+            replica_timestamps,
             _replica_count: replica_count,
         }
     }
@@ -192,18 +199,16 @@ impl PnCounterAddResponse {
     }
 }
 
-#[derive(Debug, Eq, PartialEq, Clone)]
+#[derive(Debug, Eq, PartialEq, Clone, Writer, Reader)]
 pub(crate) struct ReplicaTimestampEntry {
     key: String,
     value: i64,
 }
 
+#[allow(dead_code)]
 impl ReplicaTimestampEntry {
-    pub(crate) fn new(key: &str, value: i64) -> Self {
-        ReplicaTimestampEntry {
-            key: key.to_string(),
-            value,
-        }
+    pub(crate) fn new(key: String, value: i64) -> Self {
+        ReplicaTimestampEntry { key, value }
     }
 
     pub(crate) fn key(&self) -> &str {
@@ -215,11 +220,12 @@ impl ReplicaTimestampEntry {
     }
 }
 
-#[derive(Debug, Eq, PartialEq)]
+#[derive(Debug, Eq, PartialEq, Writer)]
 pub(crate) struct PnCounterGetReplicaCountRequest<'a> {
     name: &'a str,
 }
 
+#[allow(dead_code)]
 impl<'a> PnCounterGetReplicaCountRequest<'a> {
     pub(crate) fn new(name: &'a str) -> Self {
         PnCounterGetReplicaCountRequest { name }
@@ -230,7 +236,7 @@ impl<'a> PnCounterGetReplicaCountRequest<'a> {
     }
 }
 
-#[derive(Debug, Eq, PartialEq)]
+#[derive(Debug, Eq, PartialEq, Reader)]
 pub(crate) struct PnCounterGetReplicaCountResponse {
     count: u32,
 }

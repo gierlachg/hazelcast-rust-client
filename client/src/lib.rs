@@ -1,3 +1,6 @@
+#[macro_use]
+extern crate hazelcast_rust_client_macros;
+
 use std::{error::Error, sync::Arc};
 
 use log::info;

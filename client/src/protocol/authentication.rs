@@ -1,6 +1,9 @@
-use crate::protocol::Address;
+use crate::{
+    bytes::{Readable, Reader, Writeable, Writer},
+    protocol::Address,
+};
 
-#[derive(Debug, Eq, PartialEq)]
+#[derive(Debug, Eq, PartialEq, Writer)]
 pub(crate) struct AuthenticationRequest<'a> {
     username: &'a str,
     password: &'a str,
@@ -12,6 +15,7 @@ pub(crate) struct AuthenticationRequest<'a> {
     client_version: &'a str,
 }
 
+#[allow(dead_code)]
 impl<'a> AuthenticationRequest<'a> {
     pub(crate) fn new(
         username: &'a str,
@@ -65,7 +69,7 @@ impl<'a> AuthenticationRequest<'a> {
     }
 }
 
-#[derive(Debug, Eq, PartialEq)]
+#[derive(Debug, Eq, PartialEq, Reader)]
 pub(crate) struct AuthenticationResponse {
     failure: bool,
     address: Option<Address>,
@@ -111,7 +115,7 @@ impl AuthenticationResponse {
     }
 }
 
-#[derive(Debug, Eq, PartialEq)]
+#[derive(Debug, Eq, PartialEq, Reader)]
 pub(crate) struct ClusterMember {
     address: Address,
     id: String,
@@ -121,31 +125,31 @@ pub(crate) struct ClusterMember {
 
 impl ClusterMember {
     pub(crate) fn new(
-        address: &Address,
-        id: &str,
+        address: Address,
+        id: String,
         lite: bool,
-        attributes: &[AttributeEntry],
+        attributes: Vec<AttributeEntry>,
     ) -> Self {
         ClusterMember {
-            address: address.clone(),
-            id: id.to_string(),
+            address,
+            id,
             lite,
-            attributes: attributes.to_vec(),
+            attributes,
         }
     }
 }
 
-#[derive(Debug, Eq, PartialEq, Clone)]
+#[derive(Debug, Eq, PartialEq, Clone, Reader)]
 pub(crate) struct AttributeEntry {
     _key: String,
     _value: String,
 }
 
 impl AttributeEntry {
-    pub(crate) fn new(key: &str, value: &str) -> Self {
+    pub(crate) fn new(key: String, value: String) -> Self {
         AttributeEntry {
-            _key: key.to_string(),
-            _value: value.to_string(),
+            _key: key,
+            _value: value,
         }
     }
 }

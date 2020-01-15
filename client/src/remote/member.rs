@@ -1,8 +1,8 @@
 use std::fmt::{self, Display, Formatter};
 
 use crate::{
-    // TODO: remove dependency to protocol ???
     message::Message,
+    // TODO: remove dependency to protocol ???
     protocol::{
         authentication::{AuthenticationRequest, AuthenticationResponse},
         Address,

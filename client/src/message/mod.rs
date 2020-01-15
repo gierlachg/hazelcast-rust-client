@@ -1,5 +1,4 @@
 use std::{
-    convert::TryInto,
     error::Error,
     fmt::{self},
 };
@@ -100,6 +99,7 @@ where
     }
 }
 
+#[derive(Reader)]
 pub(crate) struct Exception {
     code: i32,
     class_name: String,
@@ -112,7 +112,7 @@ pub(crate) struct Exception {
 impl Exception {
     pub(crate) fn new(
         code: i32,
-        class_name: &str,
+        class_name: String,
         message: Option<String>,
         stack_trace: Vec<StackTraceEntry>,
         cause_error_code: u32,
@@ -120,7 +120,7 @@ impl Exception {
     ) -> Self {
         Exception {
             code,
-            class_name: class_name.to_string(),
+            class_name,
             message,
             stack_trace,
             cause_error_code,
@@ -165,59 +165,7 @@ impl Payload for Exception {
     }
 }
 
-impl Reader for Exception {
-    fn read_from(readable: &mut dyn Readable) -> Self {
-        let code = i32::read_from(readable);
-        let class_name = String::read_from(readable);
-
-        let message = if !bool::read_from(readable) {
-            Some(String::read_from(readable))
-        } else {
-            None
-        };
-
-        let number_of_entries = u32::read_from(readable)
-            .try_into()
-            .expect("unable to convert!");
-        let mut stack_trace_entries = Vec::with_capacity(number_of_entries);
-        for _ in 0..number_of_entries {
-            let class = String::read_from(readable);
-            let method = String::read_from(readable);
-
-            let file_name = if !bool::read_from(readable) {
-                Some(String::read_from(readable))
-            } else {
-                None
-            };
-
-            let line_number = u32::read_from(readable);
-
-            stack_trace_entries.push(StackTraceEntry::new(
-                &class,
-                &method,
-                file_name,
-                line_number,
-            ));
-        }
-
-        let cause_error_code = u32::read_from(readable);
-        let cause_class_name = if !bool::read_from(readable) {
-            Some(String::read_from(readable))
-        } else {
-            None
-        };
-
-        Exception::new(
-            code,
-            &class_name,
-            message,
-            stack_trace_entries,
-            cause_error_code,
-            cause_class_name,
-        )
-    }
-}
-
+#[derive(Reader)]
 pub(crate) struct StackTraceEntry {
     declaring_class: String,
     method_name: String,
@@ -227,14 +175,14 @@ pub(crate) struct StackTraceEntry {
 
 impl StackTraceEntry {
     pub(crate) fn new(
-        declaring_class: &str,
-        method_name: &str,
+        declaring_class: String,
+        method_name: String,
         file_name: Option<String>,
         line_number: u32,
     ) -> Self {
         StackTraceEntry {
-            declaring_class: declaring_class.to_string(),
-            method_name: method_name.to_string(),
+            declaring_class,
+            method_name,
             file_name,
             line_number,
         }

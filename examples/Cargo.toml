@@ -1,0 +1,18 @@
+[package]
+name = "hazelcast-rust-client-examples"
+version = "0.0.0"
+edition = "2018"
+
+[dependencies]
+hazelcast-rust-client = { path = "../client" }
+
+rand = "0.7.3"
+
+log = "0.4.8"
+log4rs = "0.9.0"
+
+tokio = { version = "0.2.9", features = ["full"] }
+
+[[example]]
+name = "pn_counter"
+path = "pn_counter.rs"
