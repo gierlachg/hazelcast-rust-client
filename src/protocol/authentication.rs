@@ -1,9 +1,5 @@
 use crate::protocol::Address;
 
-pub(crate) const CLIENT_TYPE: &str = "Rust";
-pub(crate) const CLIENT_VERSION: &str = "0.1.0-SNAPSHOT";
-pub(crate) const SERIALIZATION_VERSION: u8 = 1;
-
 #[derive(Debug, Eq, PartialEq)]
 pub(crate) struct AuthenticationRequest<'a> {
     username: &'a str,
@@ -11,16 +7,28 @@ pub(crate) struct AuthenticationRequest<'a> {
     id: Option<&'a str>,
     owner_id: Option<&'a str>,
     owner_connection: bool,
+    client_type: &'a str,
+    serialization_version: u8,
+    client_version: &'a str,
 }
 
 impl<'a> AuthenticationRequest<'a> {
-    pub(crate) fn new(username: &'a str, password: &'a str) -> Self {
+    pub(crate) fn new(
+        username: &'a str,
+        password: &'a str,
+        client_type: &'a str,
+        serialization_version: u8,
+        client_version: &'a str,
+    ) -> Self {
         AuthenticationRequest {
             username,
             password,
             id: None,
             owner_id: None,
             owner_connection: true,
+            client_type,
+            serialization_version,
+            client_version,
         }
     }
 
@@ -45,21 +53,21 @@ impl<'a> AuthenticationRequest<'a> {
     }
 
     pub(crate) fn client_type(&self) -> &str {
-        CLIENT_TYPE
+        &self.client_type
     }
 
     pub(crate) fn serialization_version(&self) -> u8 {
-        SERIALIZATION_VERSION
+        self.serialization_version
     }
 
     pub(crate) fn client_version(&self) -> &str {
-        &CLIENT_VERSION
+        &self.client_version
     }
 }
 
 #[derive(Debug, Eq, PartialEq)]
 pub(crate) struct AuthenticationResponse {
-    _status: u8,
+    failure: bool,
     address: Option<Address>,
     id: Option<String>,
     owner_id: Option<String>,
@@ -69,7 +77,7 @@ pub(crate) struct AuthenticationResponse {
 
 impl AuthenticationResponse {
     pub(crate) fn new(
-        status: u8,
+        failure: bool,
         address: Option<Address>,
         id: Option<String>,
         owner_id: Option<String>,
@@ -77,13 +85,17 @@ impl AuthenticationResponse {
         unregistered_cluster_members: Option<Vec<ClusterMember>>,
     ) -> Self {
         AuthenticationResponse {
-            _status: status,
+            failure,
             address,
             id,
             owner_id,
             _serialization_version: serialization_version,
             _unregistered_cluster_members: unregistered_cluster_members,
         }
+    }
+
+    pub(crate) fn failure(&self) -> bool {
+        self.failure
     }
 
     pub(crate) fn address(&self) -> &Option<Address> {

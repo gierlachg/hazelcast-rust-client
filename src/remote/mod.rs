@@ -34,6 +34,9 @@ impl<T> Correlator<T> {
 }
 
 const PROTOCOL_SEQUENCE: [u8; 3] = [0x43, 0x42, 0x32];
+
+const CLIENT_TYPE: &str = "Rust";
+pub(crate) const CLIENT_VERSION: &str = "0.1.0-SNAPSHOT"; // TODO: read it from Cargo.toml ???
 const PROTOCOL_VERSION: u8 = 1;
 
 const BEGIN_MESSAGE: u8 = 0x80;

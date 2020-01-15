@@ -7,7 +7,7 @@ use crate::{
         authentication::{AuthenticationRequest, AuthenticationResponse},
         Address,
     },
-    remote::channel::Channel,
+    remote::{channel::Channel, CLIENT_TYPE, CLIENT_VERSION, PROTOCOL_VERSION},
     {Result, TryFrom},
 };
 
@@ -31,24 +31,27 @@ impl Member {
     ) -> Result<Self> {
         let channel = Channel::connect(endpoint).await?;
 
-        let request = AuthenticationRequest::new(username, password).into();
+        let request = AuthenticationRequest::new(
+            username,
+            password,
+            CLIENT_TYPE,
+            PROTOCOL_VERSION,
+            CLIENT_VERSION,
+        )
+        .into();
         let response = channel.send(request).await?;
 
-        match TryFrom::<AuthenticationResponse>::try_from(response) {
-            Ok(response) => {
-                // TODO: check status & serialization version ???
-                Ok(Member {
-                    _id: response.id().clone(),
-                    owner_id: response.owner_id().clone(),
-                    address: response.address().clone(), // TODO: is it the same as endpoint ???
-                    endpoint: endpoint.to_string(),
-                    channel,
-                })
-            }
-            Err(exception) => {
-                eprintln!("{}", exception); // TODO: propagate ???
-                Err("Unable to create connection.".into())
-            }
+        let authentication = TryFrom::<AuthenticationResponse>::try_from(response)?;
+        if authentication.failure() {
+            Err("Authentication error.".into()) // TODO:
+        } else {
+            Ok(Member {
+                _id: authentication.id().clone(),
+                owner_id: authentication.owner_id().clone(),
+                address: authentication.address().clone(), // TODO: is it the same as endpoint ???
+                endpoint: endpoint.to_string(),
+                channel,
+            })
         }
     }
 

@@ -4,7 +4,7 @@ use log::info;
 
 pub use protocol::pn_counter::PnCounter;
 
-use crate::{protocol::authentication::CLIENT_VERSION, remote::cluster::Cluster};
+use crate::remote::{cluster::Cluster, CLIENT_VERSION};
 
 mod bytes;
 mod codec;

@@ -41,7 +41,7 @@ impl Payload for AuthenticationResponse {
 
 impl Reader for AuthenticationResponse {
     fn read_from(readable: &mut dyn Readable) -> Self {
-        let status = u8::read_from(readable);
+        let failure = bool::read_from(readable);
         let address = Option::read_from(readable);
         let id = Option::read_from(readable);
         let owner_id = Option::read_from(readable);
@@ -49,7 +49,7 @@ impl Reader for AuthenticationResponse {
         let unregistered_cluster_members = Option::read_from(readable);
 
         AuthenticationResponse::new(
-            status,
+            failure,
             address,
             id,
             owner_id,
@@ -83,13 +83,11 @@ impl Reader for AttributeEntry {
 mod tests {
     use bytes::{Buf, BytesMut};
 
-    use crate::protocol::authentication::{CLIENT_TYPE, CLIENT_VERSION, SERIALIZATION_VERSION};
-
     use super::*;
 
     #[test]
     fn should_write_authentication_request() {
-        let request = AuthenticationRequest::new("username", "password");
+        let request = AuthenticationRequest::new("username", "password", "Rust", 1, "1.0.0");
 
         let mut writeable = BytesMut::new();
         request.write_to(&mut writeable);
@@ -100,35 +98,36 @@ mod tests {
         assert_eq!(bool::read_from(readable), true);
         assert_eq!(bool::read_from(readable), true);
         assert_eq!(bool::read_from(readable), true);
-        assert_eq!(String::read_from(readable), CLIENT_TYPE);
-        assert_eq!(u8::read_from(readable), SERIALIZATION_VERSION);
-        assert_eq!(String::read_from(readable), CLIENT_VERSION);
+        assert_eq!(String::read_from(readable), request.client_type());
+        assert_eq!(u8::read_from(readable), request.serialization_version());
+        assert_eq!(String::read_from(readable), request.client_version());
     }
 
     #[test]
     fn should_read_authentication_response() {
-        let status: u8 = 1;
+        let failure = false;
         let address = Some(Address::new("localhost", 5701));
         let id = Some("id");
         let owner_id = Some("owner-id");
+        let protocol_version = 1;
 
         let writeable = &mut BytesMut::new();
-        status.write_to(writeable);
+        failure.write_to(writeable);
         address.write_to(writeable);
         id.write_to(writeable);
         owner_id.write_to(writeable);
-        SERIALIZATION_VERSION.write_to(writeable);
+        protocol_version.write_to(writeable);
         true.write_to(writeable);
 
         let readable = &mut writeable.to_bytes();
         assert_eq!(
             AuthenticationResponse::read_from(readable),
             AuthenticationResponse::new(
-                status,
+                failure,
                 address,
                 id.map(str::to_string),
                 owner_id.map(str::to_string),
-                SERIALIZATION_VERSION,
+                protocol_version,
                 None,
             )
         );
