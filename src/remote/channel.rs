@@ -19,8 +19,8 @@ use tokio_util::codec::{FramedRead, LengthDelimitedCodec};
 use crate::{
     message::Message,
     remote::{
-        Correlator, FrameCodec, LENGTH_FIELD_ADJUSTMENT, LENGTH_FIELD_LENGTH, LENGTH_FIELD_OFFSET,
-        PROTOCOL_SEQUENCE,
+        Correlator, MessageCodec, LENGTH_FIELD_ADJUSTMENT, LENGTH_FIELD_LENGTH,
+        LENGTH_FIELD_OFFSET, PROTOCOL_SEQUENCE,
     },
     Result,
 };
@@ -69,11 +69,11 @@ impl Channel {
                     Ok(Event::Egress(message, responder)) => {
                         let mut frame = BytesMut::new();
                         let correlation_id = correlator.set(responder);
-                        FrameCodec::encode(&mut frame, &message, correlation_id);
+                        MessageCodec::encode(&mut frame, &message, correlation_id);
                         writer.send(frame.to_bytes()).await?;
                     }
                     Ok(Event::Ingress(mut frame)) => {
-                        let (message, correlation_id) = FrameCodec::decode(&mut frame.to_bytes());
+                        let (message, correlation_id) = MessageCodec::decode(&mut frame.to_bytes());
                         match correlator
                             .get(&correlation_id)
                             .expect("missing correlation!")

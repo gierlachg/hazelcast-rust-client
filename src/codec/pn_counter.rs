@@ -1,5 +1,3 @@
-use std::convert::TryInto;
-
 use crate::{
     bytes::{Readable, Reader, Writeable, Writer},
     message::Payload,
@@ -30,16 +28,7 @@ impl<'a> Payload for PnCounterGetRequest<'a> {
 impl<'a> Writer for PnCounterGetRequest<'a> {
     fn write_to(&self, writeable: &mut dyn Writeable) {
         self.name().write_to(writeable);
-        let len: u32 = self
-            .replica_timestamps()
-            .len()
-            .try_into()
-            .expect("unable to convert!");
-        len.write_to(writeable);
-        for replica_timestamp in self.replica_timestamps() {
-            replica_timestamp.key().write_to(writeable);
-            replica_timestamp.value().write_to(writeable);
-        }
+        self.replica_timestamps().write_to(writeable);
         self.address().write_to(writeable);
     }
 }
@@ -53,18 +42,9 @@ impl Payload for PnCounterGetResponse {
 impl Reader for PnCounterGetResponse {
     fn read_from(readable: &mut dyn Readable) -> Self {
         let value = i64::read_from(readable);
+        let replica_timestamps = Vec::read_from(readable);
 
-        let number_of_entries: usize = u32::read_from(readable)
-            .try_into()
-            .expect("unable to convert!");
-        let mut replica_timestamp_entries = Vec::with_capacity(number_of_entries as usize);
-        for _ in 0..number_of_entries {
-            let key = String::read_from(readable);
-            let value = i64::read_from(readable);
-            replica_timestamp_entries.push(ReplicaTimestampEntry::new(&key, value));
-        }
-
-        PnCounterGetResponse::new(value, &replica_timestamp_entries)
+        PnCounterGetResponse::new(value, &replica_timestamps)
     }
 }
 
@@ -81,16 +61,7 @@ impl<'a> Writer for PnCounterAddRequest<'a> {
         self.name().write_to(writeable);
         self.delta().write_to(writeable);
         self.get_before_update().write_to(writeable);
-        let len: u32 = self
-            .replica_timestamps()
-            .len()
-            .try_into()
-            .expect("unable to convert!");
-        len.write_to(writeable);
-        for replica_timestamp in self.replica_timestamps() {
-            replica_timestamp.key().write_to(writeable);
-            replica_timestamp.value().write_to(writeable);
-        }
+        self.replica_timestamps().write_to(writeable);
         self.address().write_to(writeable);
     }
 }
@@ -104,19 +75,26 @@ impl Payload for PnCounterAddResponse {
 impl Reader for PnCounterAddResponse {
     fn read_from(readable: &mut dyn Readable) -> Self {
         let value = i64::read_from(readable);
-
-        let number_of_entries: usize = u32::read_from(readable)
-            .try_into()
-            .expect("unable to convert!");
-        let mut replica_timestamp_entries = Vec::with_capacity(number_of_entries as usize);
-        for _ in 0..number_of_entries {
-            let key = String::read_from(readable);
-            let value = i64::read_from(readable);
-            replica_timestamp_entries.push(ReplicaTimestampEntry::new(&key, value));
-        }
+        let replica_timestamps = Vec::read_from(readable);
         let replica_count = u32::read_from(readable);
 
-        PnCounterAddResponse::new(value, &replica_timestamp_entries, replica_count)
+        PnCounterAddResponse::new(value, &replica_timestamps, replica_count)
+    }
+}
+
+impl Writer for ReplicaTimestampEntry {
+    fn write_to(&self, writeable: &mut dyn Writeable) {
+        self.key().write_to(writeable);
+        self.value().write_to(writeable);
+    }
+}
+
+impl Reader for ReplicaTimestampEntry {
+    fn read_from(readable: &mut dyn Readable) -> Self {
+        let key = String::read_from(readable);
+        let value = i64::read_from(readable);
+
+        ReplicaTimestampEntry::new(&key, value)
     }
 }
 
@@ -150,6 +128,8 @@ impl Reader for PnCounterGetReplicaCountResponse {
 
 #[cfg(test)]
 mod tests {
+    use std::ops::Deref;
+
     use bytes::{Buf, BytesMut};
 
     use crate::protocol::Address;
@@ -168,16 +148,8 @@ mod tests {
         let readable = &mut writeable.to_bytes();
         assert_eq!(String::read_from(readable), request.name());
         assert_eq!(
-            u32::read_from(readable),
-            request.replica_timestamps().len() as u32
-        );
-        assert_eq!(
-            String::read_from(readable),
-            request.replica_timestamps()[0].key()
-        );
-        assert_eq!(
-            i64::read_from(readable),
-            request.replica_timestamps()[0].value()
+            Vec::<ReplicaTimestampEntry>::read_from(readable).deref(),
+            replica_timestamps
         );
         assert_eq!(&Address::read_from(readable), request.address());
     }
@@ -185,25 +157,16 @@ mod tests {
     #[test]
     fn should_read_get_response() {
         let value = 12;
-        let replica_timestamp_key = "replica-timestamp-key";
-        let replica_timestamp_value = 69;
+        let replica_timestamps = vec![ReplicaTimestampEntry::new("key", 69)];
 
         let writeable = &mut BytesMut::new();
         value.write_to(writeable);
-        1u32.write_to(writeable);
-        replica_timestamp_key.write_to(writeable);
-        replica_timestamp_value.write_to(writeable);
+        replica_timestamps.deref().write_to(writeable);
 
         let readable = &mut writeable.to_bytes();
         assert_eq!(
             PnCounterGetResponse::read_from(readable),
-            PnCounterGetResponse::new(
-                value,
-                &[ReplicaTimestampEntry::new(
-                    replica_timestamp_key,
-                    replica_timestamp_value,
-                )],
-            )
+            PnCounterGetResponse::new(value, &replica_timestamps)
         );
     }
 
@@ -222,16 +185,8 @@ mod tests {
         assert_eq!(i64::read_from(readable), request.delta());
         assert_eq!(bool::read_from(readable), request.get_before_update());
         assert_eq!(
-            u32::read_from(readable),
-            request.replica_timestamps().len() as u32
-        );
-        assert_eq!(
-            String::read_from(readable),
-            request.replica_timestamps()[0].key()
-        );
-        assert_eq!(
-            i64::read_from(readable),
-            request.replica_timestamps()[0].value()
+            Vec::<ReplicaTimestampEntry>::read_from(readable).deref(),
+            replica_timestamps
         );
         assert_eq!(&Address::read_from(readable), request.address());
     }
@@ -239,28 +194,46 @@ mod tests {
     #[test]
     fn should_read_add_response() {
         let value = 12;
-        let replica_timestamp_key = "replica-timestamp-key";
-        let replica_timestamp_value = 69;
+        let replica_timestamps = vec![ReplicaTimestampEntry::new("key", 69)];
         let replica_count = 3;
 
         let writeable = &mut BytesMut::new();
         value.write_to(writeable);
-        1u32.write_to(writeable);
-        replica_timestamp_key.write_to(writeable);
-        replica_timestamp_value.write_to(writeable);
+        replica_timestamps.deref().write_to(writeable);
         replica_count.write_to(writeable);
 
         let readable = &mut writeable.to_bytes();
         assert_eq!(
             PnCounterAddResponse::read_from(readable),
-            PnCounterAddResponse::new(
-                value,
-                &[ReplicaTimestampEntry::new(
-                    replica_timestamp_key,
-                    replica_timestamp_value,
-                )],
-                replica_count,
-            )
+            PnCounterAddResponse::new(value, &replica_timestamps, replica_count)
+        );
+    }
+
+    #[test]
+    fn should_write_replica_timestamp_entry() {
+        let replica_timestamp = ReplicaTimestampEntry::new("key", 69);
+
+        let writeable = &mut BytesMut::new();
+        replica_timestamp.write_to(writeable);
+
+        let readable = &mut writeable.to_bytes();
+        assert_eq!(String::read_from(readable), replica_timestamp.key());
+        assert_eq!(i64::read_from(readable), replica_timestamp.value());
+    }
+
+    #[test]
+    fn should_read_replica_timestamp_entry() {
+        let key = "key";
+        let value = 12;
+
+        let writeable = &mut BytesMut::new();
+        key.write_to(writeable);
+        value.write_to(writeable);
+
+        let readable = &mut writeable.to_bytes();
+        assert_eq!(
+            ReplicaTimestampEntry::read_from(readable),
+            ReplicaTimestampEntry::new(key, value)
         );
     }
 

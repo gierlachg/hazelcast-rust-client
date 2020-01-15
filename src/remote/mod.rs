@@ -45,9 +45,9 @@ const LENGTH_FIELD_LENGTH: usize = 4;
 const LENGTH_FIELD_ADJUSTMENT: isize = -4;
 const HEADER_LENGTH: usize = 22;
 
-struct FrameCodec {}
+struct MessageCodec {}
 
-impl FrameCodec {
+impl MessageCodec {
     fn encode(frame: &mut dyn Writeable, message: &Message, correlation_id: u64) {
         let data_offset: u16 = HEADER_LENGTH.try_into().expect("unable to convert");
 
@@ -114,7 +114,7 @@ mod tests {
         let message = Message::new(1, 2, Bytes::from(vec![3]));
 
         let mut writeable = BytesMut::new();
-        FrameCodec::encode(&mut writeable, &message, correlation_id);
+        MessageCodec::encode(&mut writeable, &message, correlation_id);
         assert_eq!(
             writeable.bytes(),
             [
@@ -129,6 +129,9 @@ mod tests {
         );
 
         let mut readable = writeable.to_bytes();
-        assert_eq!(FrameCodec::decode(&mut readable), (message, correlation_id));
+        assert_eq!(
+            MessageCodec::decode(&mut readable),
+            (message, correlation_id)
+        );
     }
 }

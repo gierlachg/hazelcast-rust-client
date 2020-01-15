@@ -44,15 +44,18 @@ impl Cluster {
         }
     }
 
-    pub(crate) async fn dispatch<R>(&self, message: Message) -> Result<R>
+    pub(crate) async fn dispatch<I, O>(&self, message: I) -> Result<O>
     where
-        R: Payload + Reader,
+        I: Into<Message>,
+        O: Payload + Reader,
     {
-        // TODO: accepting & dispatching by address ???
-        let value = self.counter.fetch_add(1, Ordering::SeqCst);
-        match self.members[value % self.members.len()].send(message).await {
-            Ok(message) => TryFrom::<R>::try_from(message),
-            Err(e) => Err(e), // TODO:
+        let index = self.counter.fetch_add(1, Ordering::SeqCst);
+        match self.members[index % self.members.len()]
+            .send(message.into())
+            .await
+        {
+            Ok(message) => TryFrom::<O>::try_from(message),
+            Err(e) => Err(e),
         }
     }
 

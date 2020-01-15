@@ -106,6 +106,28 @@ impl Writer for &str {
     }
 }
 
+impl<T: Writer> Writer for Option<T> {
+    fn write_to(&self, writeable: &mut dyn Writeable) {
+        match self {
+            Some(value) => {
+                false.write_to(writeable);
+                value.write_to(writeable);
+            }
+            None => true.write_to(writeable),
+        }
+    }
+}
+
+impl<T: Writer> Writer for &[T] {
+    fn write_to(&self, writeable: &mut dyn Writeable) {
+        let len: u32 = self.len().try_into().expect("unable to convert!");
+        len.write_to(writeable);
+        for item in self.iter() {
+            item.write_to(writeable);
+        }
+    }
+}
+
 impl Reader for bool {
     fn read_from(readable: &mut dyn Readable) -> Self {
         readable.read_bool()
@@ -154,6 +176,29 @@ impl Reader for String {
         std::str::from_utf8(&readable.read_slice(len))
             .expect("unable to parse utf8 string!")
             .to_string()
+    }
+}
+
+impl<T: Reader> Reader for Option<T> {
+    fn read_from(readable: &mut dyn Readable) -> Self {
+        if !bool::read_from(readable) {
+            Some(T::read_from(readable))
+        } else {
+            None
+        }
+    }
+}
+
+impl<T: Reader> Reader for Vec<T> {
+    fn read_from(readable: &mut dyn Readable) -> Self {
+        let len = u32::read_from(readable)
+            .try_into()
+            .expect("unable to convert!");
+        let mut items = Vec::with_capacity(len);
+        for _ in 0..len {
+            items.push(T::read_from(readable));
+        }
+        items
     }
 }
 
@@ -240,6 +285,7 @@ impl Readable for Bytes {
 #[cfg(test)]
 mod tests {
     use super::*;
+    use std::ops::Deref;
 
     #[test]
     fn should_write_and_read_bool() {
@@ -335,6 +381,26 @@ mod tests {
 
         let readable = &mut writeable.to_bytes();
         assert_eq!(String::read_from(readable), "10");
+    }
+
+    #[test]
+    fn should_write_and_read_option() {
+        let writeable = &mut BytesMut::new();
+        Some(1u32).write_to(writeable);
+        Option::<u32>::None.write_to(writeable);
+
+        let readable = &mut writeable.to_bytes();
+        assert_eq!(Option::read_from(readable), Some(1u32));
+        assert_eq!(Option::<u32>::read_from(readable), None);
+    }
+
+    #[test]
+    fn should_write_and_read_vec() {
+        let writeable = &mut BytesMut::new();
+        vec![1u32].deref().write_to(writeable);
+
+        let readable = &mut writeable.to_bytes();
+        assert_eq!(Vec::<u32>::read_from(readable), vec!(1u32));
     }
 
     #[test]

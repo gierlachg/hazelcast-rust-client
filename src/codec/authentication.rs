@@ -1,5 +1,3 @@
-use std::convert::TryInto;
-
 use crate::{
     bytes::{Readable, Reader, Writeable, Writer},
     message::Payload,
@@ -26,22 +24,8 @@ impl<'a> Writer for AuthenticationRequest<'a> {
     fn write_to(&self, writeable: &mut dyn Writeable) {
         self.username().write_to(writeable);
         self.password().write_to(writeable);
-
-        match self.id().as_deref() {
-            Some(s) => {
-                false.write_to(writeable);
-                s.write_to(writeable);
-            }
-            None => true.write_to(writeable),
-        }
-        match self.owner_id().as_deref() {
-            Some(s) => {
-                false.write_to(writeable);
-                s.write_to(writeable);
-            }
-            None => true.write_to(writeable),
-        }
-
+        self.id().write_to(writeable);
+        self.owner_id().write_to(writeable);
         self.owner_connection().write_to(writeable);
         self.client_type().write_to(writeable);
         self.serialization_version().write_to(writeable);
@@ -58,51 +42,11 @@ impl Payload for AuthenticationResponse {
 impl Reader for AuthenticationResponse {
     fn read_from(readable: &mut dyn Readable) -> Self {
         let status = u8::read_from(readable);
-        let address = if !bool::read_from(readable) {
-            Some(Address::read_from(readable))
-        } else {
-            None
-        };
-        let id = if !bool::read_from(readable) {
-            Some(String::read_from(readable))
-        } else {
-            None
-        };
-        let owner_id = if !bool::read_from(readable) {
-            Some(String::read_from(readable))
-        } else {
-            None
-        };
+        let address = Option::read_from(readable);
+        let id = Option::read_from(readable);
+        let owner_id = Option::read_from(readable);
         let serialization_version = u8::read_from(readable);
-
-        let unregistered_cluster_member_entries = if !bool::read_from(readable) {
-            let number_of_entries = u32::read_from(readable)
-                .try_into()
-                .expect("unable to convert!");
-            let mut cluster_member_entries = Vec::with_capacity(number_of_entries);
-            for _ in 0..number_of_entries {
-                let address = Address::read_from(readable);
-                let id = String::read_from(readable);
-                let lite = bool::read_from(readable);
-
-                let number_of_attributes = u32::read_from(readable)
-                    .try_into()
-                    .expect("unable to convert!");
-                let mut attributes = Vec::with_capacity(number_of_attributes);
-                for _ in 0..number_of_attributes {
-                    let key = String::read_from(readable);
-                    let value = String::read_from(readable);
-
-                    attributes.push(AttributeEntry::new(&key, &value));
-                }
-
-                cluster_member_entries.push(ClusterMember::new(&address, &id, lite, &attributes));
-            }
-
-            Some(cluster_member_entries)
-        } else {
-            None
-        };
+        let unregistered_cluster_members = Option::read_from(readable);
 
         AuthenticationResponse::new(
             status,
@@ -110,8 +54,28 @@ impl Reader for AuthenticationResponse {
             id,
             owner_id,
             serialization_version,
-            unregistered_cluster_member_entries,
+            unregistered_cluster_members,
         )
+    }
+}
+
+impl Reader for ClusterMember {
+    fn read_from(readable: &mut dyn Readable) -> Self {
+        let address = Address::read_from(readable);
+        let id = String::read_from(readable);
+        let lite = bool::read_from(readable);
+        let attributes = Vec::read_from(readable);
+
+        ClusterMember::new(&address, &id, lite, &attributes)
+    }
+}
+
+impl Reader for AttributeEntry {
+    fn read_from(readable: &mut dyn Readable) -> Self {
+        let key = String::read_from(readable);
+        let value = String::read_from(readable);
+
+        AttributeEntry::new(&key, &value)
     }
 }
 
@@ -119,8 +83,9 @@ impl Reader for AuthenticationResponse {
 mod tests {
     use bytes::{Buf, BytesMut};
 
-    use super::*;
     use crate::protocol::authentication::{CLIENT_TYPE, CLIENT_VERSION, SERIALIZATION_VERSION};
+
+    use super::*;
 
     #[test]
     fn should_write_authentication_request() {
@@ -143,17 +108,14 @@ mod tests {
     #[test]
     fn should_read_authentication_response() {
         let status: u8 = 1;
-        let address = Address::new("localhost", 5701);
-        let id = "id";
-        let owner_id = "owner-id";
+        let address = Some(Address::new("localhost", 5701));
+        let id = Some("id");
+        let owner_id = Some("owner-id");
 
         let writeable = &mut BytesMut::new();
         status.write_to(writeable);
-        false.write_to(writeable);
         address.write_to(writeable);
-        false.write_to(writeable);
         id.write_to(writeable);
-        false.write_to(writeable);
         owner_id.write_to(writeable);
         SERIALIZATION_VERSION.write_to(writeable);
         true.write_to(writeable);
@@ -163,12 +125,47 @@ mod tests {
             AuthenticationResponse::read_from(readable),
             AuthenticationResponse::new(
                 status,
-                Some(address),
-                Some(id.to_string()),
-                Some(owner_id.to_string()),
+                address,
+                id.map(str::to_string),
+                owner_id.map(str::to_string),
                 SERIALIZATION_VERSION,
-                None
+                None,
             )
+        );
+    }
+
+    #[test]
+    fn should_read_cluster_member() {
+        let address = Address::new("localhost", 5701);
+        let id = "id";
+        let lite = true;
+
+        let writeable = &mut BytesMut::new();
+        address.write_to(writeable);
+        id.write_to(writeable);
+        lite.write_to(writeable);
+        0u32.write_to(writeable);
+
+        let readable = &mut writeable.to_bytes();
+        assert_eq!(
+            ClusterMember::read_from(readable),
+            ClusterMember::new(&address, id, lite, &vec!())
+        );
+    }
+
+    #[test]
+    fn should_read_attribute() {
+        let key = "key";
+        let value = "value";
+
+        let writeable = &mut BytesMut::new();
+        key.write_to(writeable);
+        value.write_to(writeable);
+
+        let readable = &mut writeable.to_bytes();
+        assert_eq!(
+            AttributeEntry::read_from(readable),
+            AttributeEntry::new(key, value)
         );
     }
 }

@@ -20,8 +20,7 @@ impl PnCounter {
     pub async fn get(&mut self) -> Result<i64> {
         let address = self.cluster.address().clone().expect("missing address!"); // TODO: not sure where address should come from, what is its purpose....
 
-        let request =
-            PnCounterGetRequest::new(&self.name, &address, &self.replica_timestamps).into();
+        let request = PnCounterGetRequest::new(&self.name, &address, &self.replica_timestamps);
         let response: PnCounterGetResponse = self.cluster.dispatch(request).await?;
         self.replica_timestamps = response.replica_timestamps().to_vec();
         Ok(response.value())
@@ -44,15 +43,14 @@ impl PnCounter {
             delta,
             get_before_update,
             &self.replica_timestamps,
-        )
-        .into();
+        );
         let response: PnCounterAddResponse = self.cluster.dispatch(request).await?;
         self.replica_timestamps = response.replica_timestamps().to_vec();
         Ok(response.value())
     }
 
     pub async fn replica_count(&mut self) -> Result<u32> {
-        let request = PnCounterGetReplicaCountRequest::new(&self.name).into();
+        let request = PnCounterGetReplicaCountRequest::new(&self.name);
         let response: PnCounterGetReplicaCountResponse = self.cluster.dispatch(request).await?;
         Ok(response.count())
     }
