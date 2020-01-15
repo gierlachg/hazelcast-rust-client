@@ -1,7 +1,7 @@
 use std::{collections::HashMap, convert::TryInto};
 
 use crate::{
-    bytes::{Readable, Writeable, Writer},
+    codec::{Readable, Writeable, Writer},
     message::Message,
 };
 

@@ -54,9 +54,9 @@ pub fn derive_reader(input: proc_macro::TokenStream) -> proc_macro::TokenStream 
     let expanded = quote! {
         impl #impl_generics Reader for #name #ty_generics #where_clause {
             fn read_from(readable: &mut dyn Readable) -> Self {
-                #name::new(
+                #name {
                     #body
-                )
+                }
             }
         }
     };
@@ -69,6 +69,7 @@ fn reader_body(data: &Data) -> TokenStream {
             Fields::Named(ref fields) => {
                 let recurse = fields.named.iter().map(|field| match &field.ty {
                     Type::Path(type_path) => {
+                        let name = &field.ident;
                         let type_name = &type_path
                             .path
                             .segments
@@ -76,7 +77,7 @@ fn reader_body(data: &Data) -> TokenStream {
                             .expect("missing first segment!")
                             .ident;
                         quote_spanned! {field.span() =>
-                            #type_name::read_from(readable),
+                            #name: #type_name::read_from(readable),
                         }
                     }
                     Type::Array(_)

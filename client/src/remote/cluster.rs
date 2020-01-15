@@ -1,12 +1,12 @@
 use std::{
-    fmt::{self, Display, Formatter},
+    fmt,
     sync::atomic::{AtomicUsize, Ordering},
 };
 
 use log::{error, info};
 
 use crate::{
-    bytes::Reader,
+    codec::Reader,
     message::{Message, Payload},
     // TODO: remove dependency to protocol ???
     protocol::Address,
@@ -64,8 +64,8 @@ impl Cluster {
     }
 }
 
-impl Display for Cluster {
-    fn fmt(&self, formatter: &mut Formatter<'_>) -> fmt::Result {
+impl fmt::Display for Cluster {
+    fn fmt(&self, formatter: &mut fmt::Formatter<'_>) -> fmt::Result {
         write!(
             formatter,
             "\n\nMembers {{size: {}}} [\n",

@@ -1,12 +1,9 @@
-use std::{
-    error::Error,
-    fmt::{self},
-};
+use std::{error::Error, fmt};
 
 use bytes::{Buf, Bytes, BytesMut};
 
 use crate::{
-    bytes::{Readable, Reader, Writer},
+    codec::{Readable, Reader, Writer},
     TryFrom,
 };
 
@@ -109,26 +106,6 @@ pub(crate) struct Exception {
     cause_class_name: Option<String>,
 }
 
-impl Exception {
-    pub(crate) fn new(
-        code: i32,
-        class_name: String,
-        message: Option<String>,
-        stack_trace: Vec<StackTraceEntry>,
-        cause_error_code: u32,
-        cause_class_name: Option<String>,
-    ) -> Self {
-        Exception {
-            code,
-            class_name,
-            message,
-            stack_trace,
-            cause_error_code,
-            cause_class_name,
-        }
-    }
-}
-
 impl Error for Exception {}
 
 impl fmt::Display for Exception {
@@ -171,22 +148,6 @@ pub(crate) struct StackTraceEntry {
     method_name: String,
     file_name: Option<String>,
     line_number: u32,
-}
-
-impl StackTraceEntry {
-    pub(crate) fn new(
-        declaring_class: String,
-        method_name: String,
-        file_name: Option<String>,
-        line_number: u32,
-    ) -> Self {
-        StackTraceEntry {
-            declaring_class,
-            method_name,
-            file_name,
-            line_number,
-        }
-    }
 }
 
 impl fmt::Display for StackTraceEntry {

@@ -1,4 +1,4 @@
-use std::fmt::{self, Display, Formatter};
+use std::fmt;
 
 use crate::{
     message::Message,
@@ -64,8 +64,8 @@ impl Member {
     }
 }
 
-impl Display for Member {
-    fn fmt(&self, formatter: &mut Formatter<'_>) -> fmt::Result {
+impl fmt::Display for Member {
+    fn fmt(&self, formatter: &mut fmt::Formatter<'_>) -> fmt::Result {
         write!(formatter, "Member {} - {:?}", self.endpoint, self.owner_id)
     }
 }

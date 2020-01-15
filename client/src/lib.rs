@@ -9,7 +9,6 @@ pub use protocol::pn_counter::PnCounter;
 
 use crate::remote::cluster::Cluster;
 
-mod bytes;
 mod codec;
 mod message;
 mod protocol;
