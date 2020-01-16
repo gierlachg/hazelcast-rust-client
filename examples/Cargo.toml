@@ -17,7 +17,3 @@ tokio = { version = "0.2.9", features = ["full"] }
 [[example]]
 name = "pn_counter"
 path = "pn_counter.rs"
-
-[[example]]
-name = "client"
-path = "client.rs"
