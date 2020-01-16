@@ -11,6 +11,7 @@ use crate::{
     // TODO: remove dependency to protocol ???
     protocol::Address,
     remote::member::Member,
+    HazelcastClientError::ClusterNonOperational,
     Result,
     TryFrom,
 };
@@ -35,7 +36,7 @@ impl Cluster {
         }
 
         if members.is_empty() {
-            Err("Unable to connect any member.".into())
+            Err(ClusterNonOperational)
         } else {
             Ok(Cluster {
                 counter: AtomicUsize::new(0),

@@ -4,6 +4,7 @@ use bytes::{Buf, Bytes, BytesMut};
 
 use crate::{
     codec::{Readable, Reader, Writer},
+    HazelcastClientError::{self, ServerFailure},
     TryFrom,
 };
 
@@ -77,7 +78,7 @@ impl<T> TryFrom<T> for Message
 where
     T: Payload + Reader,
 {
-    type Error = Box<dyn Error + Send + Sync>;
+    type Error = HazelcastClientError;
 
     fn try_from(self) -> Result<T, Self::Error> {
         let readable = &mut self.payload();
@@ -91,7 +92,7 @@ where
                 self.message_type(),
                 T::r#type()
             );
-            Err(Box::new(Exception::read_from(readable)))
+            Err(ServerFailure(Box::new(Exception::read_from(readable))))
         }
     }
 }

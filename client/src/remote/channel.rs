@@ -1,4 +1,5 @@
 use std::{
+    error::Error,
     future::Future,
     pin::Pin,
     task::{Context, Poll},
@@ -21,10 +22,10 @@ use crate::{
     remote::{
         Correlator, MessageCodec, LENGTH_FIELD_ADJUSTMENT, LENGTH_FIELD_LENGTH, LENGTH_FIELD_OFFSET, PROTOCOL_SEQUENCE,
     },
-    Result,
 };
 
 type Responder = oneshot::Sender<Message>;
+type Result<T> = std::result::Result<T, Box<dyn Error + Send + Sync>>;
 
 enum Event {
     Egress(Message, Responder),
@@ -69,7 +70,7 @@ impl Channel {
                         let mut frame = BytesMut::new();
                         let correlation_id = correlator.set(responder);
                         MessageCodec::encode(&mut frame, &message, correlation_id);
-                        writer.send(frame.to_bytes()).await?;
+                        writer.send(frame.to_bytes()).await?
                     }
                     Ok(Event::Ingress(mut frame)) => {
                         let (message, correlation_id) = MessageCodec::decode(&mut frame.to_bytes());
@@ -137,7 +138,7 @@ where
 {
     tokio::spawn(async move {
         if let Err(e) = future.await {
-            error!("Unexpected error occurred - {}", e)
+            error!("{}", e)
         }
     })
 }

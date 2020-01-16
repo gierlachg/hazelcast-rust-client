@@ -8,6 +8,7 @@ use crate::{
         Address,
     },
     remote::{channel::Channel, CLIENT_TYPE, CLIENT_VERSION, PROTOCOL_VERSION},
+    HazelcastClientError::{CommunicationFailure, InvalidCredentials},
     {Result, TryFrom},
 };
 
@@ -25,28 +26,37 @@ pub(in crate::remote) struct Member {
 
 impl Member {
     pub(in crate::remote) async fn connect(endpoint: &str, username: &str, password: &str) -> Result<Self> {
-        let channel = Channel::connect(endpoint).await?;
+        let channel = match Channel::connect(endpoint).await {
+            Ok(channel) => channel,
+            Err(e) => return Err(CommunicationFailure(e)),
+        };
 
         let request =
             AuthenticationRequest::new(username, password, CLIENT_TYPE, PROTOCOL_VERSION, CLIENT_VERSION).into();
-        let response = channel.send(request).await?;
-
-        let authentication = TryFrom::<AuthenticationResponse>::try_from(response)?;
-        if authentication.failure() {
-            Err("Authentication error.".into()) // TODO:
-        } else {
-            Ok(Member {
-                _id: authentication.id().clone(),
-                owner_id: authentication.owner_id().clone(),
-                address: authentication.address().clone(), // TODO: is it the same as endpoint ???
-                endpoint: endpoint.to_string(),
-                channel,
-            })
+        match channel.send(request).await {
+            Ok(response) => {
+                let authentication = TryFrom::<AuthenticationResponse>::try_from(response)?;
+                if authentication.failure() {
+                    Err(InvalidCredentials)
+                } else {
+                    Ok(Member {
+                        _id: authentication.id().clone(),
+                        owner_id: authentication.owner_id().clone(),
+                        address: authentication.address().clone(), // TODO: is it the same as endpoint ???
+                        endpoint: endpoint.to_string(),
+                        channel,
+                    })
+                }
+            }
+            Err(e) => Err(CommunicationFailure(e)),
         }
     }
 
     pub(in crate::remote) async fn send(&self, message: Message) -> Result<Message> {
-        self.channel.send(message).await
+        match self.channel.send(message).await {
+            Ok(response) => Ok(response),
+            Err(e) => Err(CommunicationFailure(e)),
+        }
     }
 
     pub(in crate::remote) fn address(&self) -> &Option<Address> {

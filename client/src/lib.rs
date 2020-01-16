@@ -1,9 +1,10 @@
 #[macro_use]
 extern crate hazelcast_rust_client_macros;
 
-use std::{error::Error, sync::Arc};
+use std::{error, sync::Arc};
 
 use log::info;
+use thiserror::Error;
 
 pub use protocol::pn_counter::PnCounter;
 
@@ -14,12 +15,16 @@ mod message;
 mod protocol;
 mod remote;
 
-type Result<T> = std::result::Result<T, Box<dyn Error + Send + Sync>>;
-
-trait TryFrom<T> {
-    type Error;
-
-    fn try_from(self) -> std::result::Result<T, Self::Error>;
+#[derive(Error, Debug)]
+pub enum HazelcastClientError {
+    #[error("unable to authenticate")]
+    InvalidCredentials,
+    #[error("unable to communicate with any cluster member")]
+    ClusterNonOperational,
+    #[error("unable to communicate with the server ({0})")]
+    CommunicationFailure(Box<dyn error::Error + Send + Sync>),
+    #[error("server was unable to process message ({0})")]
+    ServerFailure(Box<dyn error::Error + Send + Sync>),
 }
 
 pub struct HazelcastClient {
@@ -45,4 +50,12 @@ impl HazelcastClient {
     pub fn pn_counter(&self, name: &str) -> PnCounter {
         PnCounter::new(name, self.cluster.clone())
     }
+}
+
+type Result<T> = std::result::Result<T, HazelcastClientError>;
+
+trait TryFrom<T> {
+    type Error;
+
+    fn try_from(self) -> std::result::Result<T, Self::Error>;
 }
