@@ -11,19 +11,44 @@ pub fn derive_writer(input: proc_macro::TokenStream) -> proc_macro::TokenStream 
 
     let name = input.ident;
     let (impl_generics, ty_generics, where_clause) = input.generics.split_for_impl();
-    let body = writer_body(&input.data);
+    let length_body = length_body(&input.data);
+    let write_to_body = write_to_body(&input.data);
 
     let expanded = quote! {
         impl #impl_generics Writer for #name #ty_generics #where_clause {
+            fn length(&self) -> usize {
+                #length_body
+            }
+
             fn write_to(&self, writeable: &mut dyn Writeable) {
-                #body
+                #write_to_body
             }
         }
     };
     proc_macro::TokenStream::from(expanded)
 }
 
-fn writer_body(data: &Data) -> TokenStream {
+fn length_body(data: &Data) -> TokenStream {
+    match *data {
+        Data::Struct(ref data) => match data.fields {
+            Fields::Named(ref fields) => {
+                let recurse = fields.named.iter().map(|field| {
+                    let name = &field.ident;
+                    quote_spanned! {field.span() =>
+                        self.#name.length()
+                    }
+                });
+                quote! {
+                    0 #(+ #recurse)*
+                }
+            }
+            Fields::Unnamed(_) | Fields::Unit => unimplemented!(),
+        },
+        Data::Enum(_) | Data::Union(_) => unimplemented!(),
+    }
+}
+
+fn write_to_body(data: &Data) -> TokenStream {
     match *data {
         Data::Struct(ref data) => match data.fields {
             Fields::Named(ref fields) => {
@@ -70,12 +95,7 @@ fn reader_body(data: &Data) -> TokenStream {
                 let recurse = fields.named.iter().map(|field| match &field.ty {
                     Type::Path(type_path) => {
                         let name = &field.ident;
-                        let type_name = &type_path
-                            .path
-                            .segments
-                            .first()
-                            .expect("missing first segment!")
-                            .ident;
+                        let type_name = &type_path.path.segments.first().expect("missing first segment!").ident;
                         quote_spanned! {field.span() =>
                             #name: #type_name::read_from(readable),
                         }

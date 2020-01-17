@@ -33,6 +33,10 @@ impl Message {
         }
     }
 
+    pub(crate) fn length(&self) -> usize {
+        self.payload.len()
+    }
+
     pub(crate) fn message_type(&self) -> u16 {
         self.message_type
     }
@@ -67,7 +71,7 @@ where
     T: Payload + Writer,
 {
     fn from(payload: T) -> Self {
-        let mut bytes = BytesMut::new();
+        let mut bytes = BytesMut::with_capacity(payload.length());
         payload.write_to(&mut bytes);
 
         Message::new(T::r#type(), payload.partition_id(), bytes.to_bytes())

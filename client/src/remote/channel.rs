@@ -20,7 +20,7 @@ use tokio_util::codec::{FramedRead, LengthDelimitedCodec};
 use crate::{
     message::Message,
     remote::{
-        Correlator, MessageCodec, LENGTH_FIELD_ADJUSTMENT, LENGTH_FIELD_LENGTH, LENGTH_FIELD_OFFSET, PROTOCOL_SEQUENCE,
+        Correlator, LENGTH_FIELD_ADJUSTMENT, LENGTH_FIELD_LENGTH, LENGTH_FIELD_OFFSET, MessageCodec, PROTOCOL_SEQUENCE,
     },
 };
 
@@ -67,20 +67,19 @@ impl Channel {
             while let Some(event) = events.next().await {
                 match event {
                     Ok(Event::Egress(message, responder)) => {
-                        let mut frame = BytesMut::new();
                         let correlation_id = correlator.set(responder);
-                        MessageCodec::encode(&mut frame, &message, correlation_id);
-                        writer.send(frame.to_bytes()).await?
+                        let frame = MessageCodec::encode(&message, correlation_id);
+                        writer.send(frame).await?
                     }
                     Ok(Event::Ingress(mut frame)) => {
-                        let (message, correlation_id) = MessageCodec::decode(&mut frame.to_bytes());
+                        let (message, correlation_id) = MessageCodec::decode(frame.to_bytes());
                         match correlator
                             .get(&correlation_id)
                             .expect("missing correlation!")
                             .send(message)
-                        {
-                            _ => {} // TODO:
-                        }
+                            {
+                                _ => {} // TODO:
+                            }
                     }
                     Err(e) => {
                         return Err(e);
@@ -133,8 +132,8 @@ impl Stream for Broker<'_> {
 }
 
 fn spawn<F>(future: F) -> task::JoinHandle<()>
-where
-    F: Future<Output = Result<()>> + Send + 'static,
+    where
+        F: Future<Output=Result<()>> + Send + 'static,
 {
     tokio::spawn(async move {
         if let Err(e) = future.await {

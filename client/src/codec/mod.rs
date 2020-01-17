@@ -1,8 +1,10 @@
-use std::convert::TryInto;
+use std::{convert::TryInto, mem};
 
 use bytes::{Buf, BufMut, Bytes, BytesMut};
 
 pub(crate) trait Writer {
+    fn length(&self) -> usize;
+
     fn write_to(&self, writeable: &mut dyn Writeable);
 }
 
@@ -45,60 +47,94 @@ pub(crate) trait Readable {
 
     fn read_slice(&mut self, len: usize) -> Bytes;
 
-    fn read(&mut self) -> Bytes;
-
     fn skip(&mut self, len: usize);
 }
 
 impl Writer for bool {
+    fn length(&self) -> usize {
+        mem::size_of::<u8>()
+    }
+
     fn write_to(&self, writeable: &mut dyn Writeable) {
         writeable.write_bool(*self);
     }
 }
 
 impl Writer for u8 {
+    fn length(&self) -> usize {
+        mem::size_of::<u8>()
+    }
+
     fn write_to(&self, writeable: &mut dyn Writeable) {
         writeable.write_u8(*self);
     }
 }
 
 impl Writer for u16 {
+    fn length(&self) -> usize {
+        mem::size_of::<u16>()
+    }
+
     fn write_to(&self, writeable: &mut dyn Writeable) {
         writeable.write_u16(*self);
     }
 }
 
 impl Writer for i32 {
+    fn length(&self) -> usize {
+        mem::size_of::<i32>()
+    }
+
     fn write_to(&self, writeable: &mut dyn Writeable) {
         writeable.write_i32(*self);
     }
 }
 
 impl Writer for u32 {
+    fn length(&self) -> usize {
+        mem::size_of::<u32>()
+    }
+
     fn write_to(&self, writeable: &mut dyn Writeable) {
         writeable.write_u32(*self);
     }
 }
 
 impl Writer for i64 {
+    fn length(&self) -> usize {
+        mem::size_of::<i64>()
+    }
+
     fn write_to(&self, writeable: &mut dyn Writeable) {
         writeable.write_i64(*self);
     }
 }
 
 impl Writer for u64 {
+    fn length(&self) -> usize {
+        mem::size_of::<u64>()
+    }
+
     fn write_to(&self, writeable: &mut dyn Writeable) {
         writeable.write_u64(*self);
     }
 }
 
 impl Writer for [u8] {
+    fn length(&self) -> usize {
+        self.len()
+    }
+
     fn write_to(&self, writeable: &mut dyn Writeable) {
         writeable.write_slice(self);
     }
 }
 
 impl Writer for &str {
+    fn length(&self) -> usize {
+        mem::size_of::<u32>() + self.len()
+    }
+
     fn write_to(&self, writeable: &mut dyn Writeable) {
         let len: u32 = self.len().try_into().expect("unable to convert!");
         len.write_to(writeable);
@@ -107,6 +143,10 @@ impl Writer for &str {
 }
 
 impl Writer for String {
+    fn length(&self) -> usize {
+        mem::size_of::<u32>() + self.len()
+    }
+
     fn write_to(&self, writeable: &mut dyn Writeable) {
         let len: u32 = self.len().try_into().expect("unable to convert!");
         len.write_to(writeable);
@@ -115,6 +155,10 @@ impl Writer for String {
 }
 
 impl<T: Writer> Writer for Option<T> {
+    fn length(&self) -> usize {
+        mem::size_of::<u8>() + self.as_ref().map(|v| v.length()).unwrap_or(0)
+    }
+
     fn write_to(&self, writeable: &mut dyn Writeable) {
         match self {
             Some(value) => {
@@ -127,6 +171,10 @@ impl<T: Writer> Writer for Option<T> {
 }
 
 impl<T: Writer> Writer for &[T] {
+    fn length(&self) -> usize {
+        mem::size_of::<u32>() + self.len() * self.first().map(|v| v.length()).unwrap_or(0)
+    }
+
     fn write_to(&self, writeable: &mut dyn Writeable) {
         let len: u32 = self.len().try_into().expect("unable to convert!");
         len.write_to(writeable);
@@ -279,10 +327,6 @@ impl Readable for Bytes {
         self.split_to(len)
     }
 
-    fn read(&mut self) -> Bytes {
-        self.split_to(self.len())
-    }
-
     fn skip(&mut self, len: usize) {
         self.advance(len);
     }
@@ -384,23 +428,13 @@ mod tests {
     }
 
     #[test]
-    fn should_read_remaining_slice() {
-        let writeable = &mut BytesMut::new();
-        [1, 0, 1].write_to(writeable);
-
-        let readable = &mut writeable.to_bytes();
-        assert_eq!(readable.read_slice(1)[..], [1]);
-        assert_eq!(readable.read()[..], [0, 1]);
-    }
-
-    #[test]
     fn should_skip() {
         let writeable = &mut BytesMut::new();
         [1, 0, 1].write_to(writeable);
 
         let readable = &mut writeable.to_bytes();
         readable.skip(1);
-        assert_eq!(readable.read()[..], [0, 1]);
+        assert_eq!(readable.read_slice(2)[..], [0, 1]);
     }
 
     #[test]

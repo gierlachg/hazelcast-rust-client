@@ -1,7 +1,9 @@
 use std::{collections::HashMap, convert::TryInto};
 
+use bytes::{Buf, Bytes, BytesMut};
+
 use crate::{
-    codec::{Readable, Writeable, Writer},
+    codec::{Readable, Writer},
     message::Message,
 };
 
@@ -51,19 +53,23 @@ const HEADER_LENGTH: usize = 22;
 struct MessageCodec {}
 
 impl MessageCodec {
-    fn encode(frame: &mut dyn Writeable, message: &Message, correlation_id: u64) {
+    fn encode(message: &Message, correlation_id: u64) -> Bytes {
+        let mut frame = BytesMut::with_capacity(HEADER_LENGTH - LENGTH_FIELD_LENGTH + message.length());
+
         let data_offset: u16 = HEADER_LENGTH.try_into().expect("unable to convert");
 
-        PROTOCOL_VERSION.write_to(frame);
-        UNFRAGMENTED_MESSAGE.write_to(frame);
-        message.message_type().write_to(frame);
-        correlation_id.write_to(frame);
-        message.partition_id().write_to(frame);
-        data_offset.write_to(frame);
-        message.payload().write_to(frame);
+        PROTOCOL_VERSION.write_to(&mut frame);
+        UNFRAGMENTED_MESSAGE.write_to(&mut frame);
+        message.message_type().write_to(&mut frame);
+        correlation_id.write_to(&mut frame);
+        message.partition_id().write_to(&mut frame);
+        data_offset.write_to(&mut frame);
+        message.payload().write_to(&mut frame);
+
+        frame.to_bytes()
     }
 
-    fn decode(frame: &mut dyn Readable) -> (Message, u64) {
+    fn decode(mut frame: Bytes) -> (Message, u64) {
         let _version = frame.read_u8();
         let _flags = frame.read_u8();
         let message_type = frame.read_u16();
@@ -72,15 +78,14 @@ impl MessageCodec {
 
         let data_offset: usize = frame.read_u16().try_into().expect("unable to convert!");
         frame.skip(data_offset - HEADER_LENGTH);
-        let payload = frame.read();
 
-        (Message::new(message_type, partition_id, payload), correlation_id)
+        (Message::new(message_type, partition_id, frame), correlation_id)
     }
 }
 
 #[cfg(test)]
 mod tests {
-    use bytes::{Buf, Bytes, BytesMut};
+    use bytes::{Buf, Bytes};
 
     use super::*;
 
@@ -113,10 +118,9 @@ mod tests {
         let correlation_id = 13;
         let message = Message::new(1, 2, Bytes::from(vec![3]));
 
-        let mut writeable = BytesMut::new();
-        MessageCodec::encode(&mut writeable, &message, correlation_id);
+        let mut frame = MessageCodec::encode(&message, correlation_id);
         assert_eq!(
-            writeable.bytes(),
+            frame.bytes(),
             [
                 1,   // version
                 192, // flags
@@ -128,7 +132,6 @@ mod tests {
             ]
         );
 
-        let mut readable = writeable.to_bytes();
-        assert_eq!(MessageCodec::decode(&mut readable), (message, correlation_id));
+        assert_eq!(MessageCodec::decode(frame.to_bytes()), (message, correlation_id));
     }
 }
