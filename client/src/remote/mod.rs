@@ -1,4 +1,4 @@
-use std::{collections::HashMap, convert::TryInto};
+use std::convert::TryInto;
 
 use bytes::{Buf, Bytes, BytesMut};
 
@@ -10,30 +10,6 @@ use crate::{
 mod channel;
 pub(crate) mod cluster;
 mod member;
-
-struct Correlator<T> {
-    sequence: u64,
-    correlations: HashMap<u64, T>,
-}
-
-impl<T> Correlator<T> {
-    fn new() -> Self {
-        Correlator {
-            sequence: 0,
-            correlations: HashMap::new(),
-        }
-    }
-
-    fn set(&mut self, value: T) -> u64 {
-        self.sequence += 1;
-        self.correlations.insert(self.sequence, value);
-        self.sequence
-    }
-
-    fn get(&mut self, sequence: &u64) -> Option<T> {
-        self.correlations.remove(sequence)
-    }
-}
 
 const PROTOCOL_SEQUENCE: [u8; 3] = [0x43, 0x42, 0x32];
 
@@ -88,30 +64,6 @@ mod tests {
     use bytes::{Buf, Bytes};
 
     use super::*;
-
-    #[test]
-    fn should_not_retrieve_anything_for_unknown_id() {
-        let mut correlator: Correlator<String> = Correlator::new();
-
-        assert_eq!(correlator.get(&1), None);
-    }
-
-    #[test]
-    fn should_retrieve_for_known_id() {
-        let mut correlator = Correlator::new();
-
-        let id = correlator.set("data".to_string());
-
-        assert_eq!(correlator.get(&id), Some("data".to_string()));
-    }
-
-    #[test]
-    fn should_generate_unique_ids() {
-        let mut correlator = Correlator::new();
-
-        assert_eq!(correlator.set("data".to_string()), 1);
-        assert_eq!(correlator.set("data".to_string()), 2);
-    }
 
     #[test]
     fn should_encode_and_decode_message() {
