@@ -1,7 +1,7 @@
 use std::fmt;
 
 use crate::{
-    messaging::Message,
+    messaging::{Request, Response},
     // TODO: remove dependency to protocol ???
     protocol::{
         authentication::{AuthenticationRequest, AuthenticationResponse},
@@ -35,14 +35,14 @@ impl Member {
             AuthenticationRequest::new(username, password, CLIENT_TYPE, PROTOCOL_VERSION, CLIENT_VERSION).into();
         match channel.send(request).await {
             Ok(response) => {
-                let authentication = TryFrom::<AuthenticationResponse>::try_from(response)?;
-                if authentication.failure() {
+                let response = TryFrom::<AuthenticationResponse>::try_from(response)?;
+                if response.failure() {
                     Err(InvalidCredentials)
                 } else {
                     Ok(Member {
-                        _id: authentication.id().clone(),
-                        owner_id: authentication.owner_id().clone(),
-                        address: authentication.address().clone(), // TODO: is it the same as endpoint ???
+                        _id: response.id().clone(),
+                        owner_id: response.owner_id().clone(),
+                        address: response.address().clone(), // TODO: is it the same as endpoint ???
                         endpoint: endpoint.to_string(),
                         channel,
                     })
@@ -52,9 +52,9 @@ impl Member {
         }
     }
 
-    pub(in crate::remote) async fn send(&self, message: Message) -> Result<Message> {
-        match self.channel.send(message).await {
-            Ok(response) => Ok(response),
+    pub(in crate::remote) async fn send<RQ: Request, RS: Response>(&self, request: RQ) -> Result<RS> {
+        match self.channel.send(request.into()).await {
+            Ok(message) => TryFrom::<RS>::try_from(message),
             Err(e) => Err(CommunicationFailure(e)),
         }
     }

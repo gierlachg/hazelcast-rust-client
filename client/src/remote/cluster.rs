@@ -6,13 +6,12 @@ use std::{
 use log::{error, info};
 
 use crate::{
-    HazelcastClientError::ClusterNonOperational,
-    messaging::{Message, Response},
+    messaging::{Request, Response},
     // TODO: remove dependency to protocol ???
     protocol::Address,
     remote::member::Member,
+    HazelcastClientError::ClusterNonOperational,
     Result,
-    TryFrom,
 };
 
 pub(crate) struct Cluster {
@@ -21,8 +20,8 @@ pub(crate) struct Cluster {
 
 impl Cluster {
     pub(crate) async fn connect<'a, E>(endpoints: E, username: &str, password: &str) -> Result<Self>
-        where
-            E: IntoIterator<Item=&'a str>,
+    where
+        E: IntoIterator<Item = &'a str>,
     {
         let mut members = vec![];
         for endpoint in endpoints {
@@ -36,23 +35,17 @@ impl Cluster {
         if members.is_empty() {
             Err(ClusterNonOperational)
         } else {
-            Ok(Cluster { members: Members::new(members) })
+            Ok(Cluster {
+                members: Members::new(members),
+            })
         }
     }
 
-    pub(crate) async fn dispatch<I, O>(&self, message: I) -> Result<O>
-        where
-            I: Into<Message>,
-            O: Response,
-    {
+    // TODO: dispatch based on address ???
+    pub(crate) async fn dispatch<RQ: Request, RS: Response>(&self, request: RQ) -> Result<RS> {
         match self.members.next() {
-            Some(member) => {
-                match member.send(message.into()).await {
-                    Ok(message) => TryFrom::<O>::try_from(message),
-                    Err(e) => Err(e),
-                }
-            }
-            None => Err(ClusterNonOperational)
+            Some(member) => member.send(request).await,
+            None => Err(ClusterNonOperational),
         }
     }
 
@@ -74,7 +67,10 @@ struct Members {
 
 impl Members {
     fn new(members: Vec<Member>) -> Self {
-        Members { sequence: AtomicUsize::new(1), members }
+        Members {
+            sequence: AtomicUsize::new(1),
+            members,
+        }
     }
 
     fn next(&self) -> Option<&Member> {
@@ -89,7 +85,7 @@ impl Members {
 
 impl fmt::Display for Members {
     fn fmt(&self, formatter: &mut fmt::Formatter<'_>) -> fmt::Result {
-        write!(formatter, "Members {{size: {}}} [\n", self.members.len(), )?;
+        write!(formatter, "Members {{size: {}}} [\n", self.members.len(),)?;
         for member in &self.members {
             write!(formatter, "\t{}\n", member)?;
         }
