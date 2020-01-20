@@ -9,42 +9,48 @@ use quote::{quote, quote_spanned};
 pub fn derive_request(input: proc_macro::TokenStream) -> proc_macro::TokenStream {
     let input = parse_macro_input!(input as DeriveInput);
 
-    let name = input.ident;
-    let (impl_generics, ty_generics, where_clause) = input.generics.split_for_impl();
-    let type_value = find_attribute_value("r#type", &input.attrs).expect("missing 'type' attribute!");
-    let length_body = length_body(&input.data);
-    let write_to_body = write_to_body(&input.data);
-
+    let request_body = request_body(&input);
+    let writer_body = writer_body(&input);
     let expanded = quote! {
+        #request_body
+
+        #writer_body
+    };
+    proc_macro::TokenStream::from(expanded)
+}
+
+fn request_body(input: &DeriveInput) -> TokenStream {
+    let name = &input.ident;
+    let (impl_generics, ty_generics, where_clause) = &input.generics.split_for_impl();
+    let type_value = find_attribute_value("r#type", &input.attrs).expect("missing 'type' attribute!");
+
+    quote! {
         impl #impl_generics Request for #name #ty_generics #where_clause {
             fn r#type() -> u16 {
                 #type_value
             }
         }
-
-        impl #impl_generics Writer for #name #ty_generics #where_clause {
-            fn length(&self) -> usize {
-                #length_body
-            }
-
-            fn write_to(&self, writeable: &mut dyn Writeable) {
-                #write_to_body
-            }
-        }
-    };
-    proc_macro::TokenStream::from(expanded)
+    }
 }
 
 #[proc_macro_derive(Writer)]
 pub fn derive_writer(input: proc_macro::TokenStream) -> proc_macro::TokenStream {
     let input = parse_macro_input!(input as DeriveInput);
 
-    let name = input.ident;
-    let (impl_generics, ty_generics, where_clause) = input.generics.split_for_impl();
+    let writer_body = writer_body(&input);
+    let expanded = quote! {
+        #writer_body
+    };
+    proc_macro::TokenStream::from(expanded)
+}
+
+fn writer_body(input: &DeriveInput) -> TokenStream {
+    let name = &input.ident;
+    let (impl_generics, ty_generics, where_clause) = &input.generics.split_for_impl();
     let length_body = length_body(&input.data);
     let write_to_body = write_to_body(&input.data);
 
-    let expanded = quote! {
+    quote! {
         impl #impl_generics Writer for #name #ty_generics #where_clause {
             fn length(&self) -> usize {
                 #length_body
@@ -54,8 +60,7 @@ pub fn derive_writer(input: proc_macro::TokenStream) -> proc_macro::TokenStream 
                 #write_to_body
             }
         }
-    };
-    proc_macro::TokenStream::from(expanded)
+    }
 }
 
 fn length_body(data: &Data) -> TokenStream {
@@ -102,27 +107,28 @@ fn write_to_body(data: &Data) -> TokenStream {
 pub fn derive_response(input: proc_macro::TokenStream) -> proc_macro::TokenStream {
     let input = parse_macro_input!(input as DeriveInput);
 
-    let name = input.ident;
-    let (impl_generics, ty_generics, where_clause) = input.generics.split_for_impl();
-    let type_value = find_attribute_value("r#type", &input.attrs).expect("missing 'type' attribute!");
-    let read_from_body = read_from_body(&input.data);
-
+    let response_body = response_body(&input);
+    let reader_body = reader_body(&input);
     let expanded = quote! {
+        #response_body
+
+        #reader_body
+    };
+    proc_macro::TokenStream::from(expanded)
+}
+
+fn response_body(input: &DeriveInput) -> TokenStream {
+    let name = &input.ident;
+    let (impl_generics, ty_generics, where_clause) = &input.generics.split_for_impl();
+    let type_value = find_attribute_value("r#type", &input.attrs).expect("missing 'type' attribute!");
+
+    quote! {
         impl #impl_generics Response for #name #ty_generics #where_clause {
             fn r#type() -> u16 {
                  #type_value
             }
         }
-
-        impl #impl_generics Reader for #name #ty_generics #where_clause {
-            fn read_from(readable: &mut dyn Readable) -> Self {
-                #name {
-                    #read_from_body
-                }
-            }
-        }
-    };
-    proc_macro::TokenStream::from(expanded)
+    }
 }
 
 #[proc_macro_derive(Reader)]
@@ -143,6 +149,22 @@ pub fn derive_reader(input: proc_macro::TokenStream) -> proc_macro::TokenStream 
         }
     };
     proc_macro::TokenStream::from(expanded)
+}
+
+fn reader_body(input: &DeriveInput) -> TokenStream {
+    let name = &input.ident;
+    let (impl_generics, ty_generics, where_clause) = &input.generics.split_for_impl();
+    let read_from_body = read_from_body(&input.data);
+
+    quote! {
+        impl #impl_generics Reader for #name #ty_generics #where_clause {
+            fn read_from(readable: &mut dyn Readable) -> Self {
+                #name {
+                    #read_from_body
+                }
+            }
+        }
+    }
 }
 
 fn read_from_body(data: &Data) -> TokenStream {
