@@ -48,20 +48,20 @@ impl Message {
 }
 
 impl<R: Request> From<(u64, R)> for Message {
-    fn from(message: (u64, R)) -> Self {
-        let mut frame = BytesMut::with_capacity(HEADER_LENGTH - LENGTH_FIELD_LENGTH + message.1.length());
+    fn from(request: (u64, R)) -> Self {
+        let mut frame = BytesMut::with_capacity(HEADER_LENGTH - LENGTH_FIELD_LENGTH + request.1.length());
 
         let data_offset: u16 = HEADER_LENGTH.try_into().expect("unable to convert");
 
         PROTOCOL_VERSION.write_to(&mut frame);
         UNFRAGMENTED_MESSAGE.write_to(&mut frame);
         R::r#type().write_to(&mut frame);
-        message.0.write_to(&mut frame);
-        message.1.partition_id().write_to(&mut frame);
+        request.0.write_to(&mut frame);
+        request.1.partition_id().write_to(&mut frame);
         data_offset.write_to(&mut frame);
-        message.1.write_to(&mut frame);
+        request.1.write_to(&mut frame);
 
-        Message(message.0, R::r#type(), frame.to_bytes())
+        Message(request.0, R::r#type(), frame.to_bytes())
     }
 }
 
@@ -85,7 +85,7 @@ impl<R: Response> TryFrom<R> for Message {
 
     fn try_from(self) -> Result<R, Self::Error> {
         let r#type = self.r#type();
-        let mut readable: Bytes = self.payload();
+        let mut readable = self.payload();
 
         if r#type == R::r#type() {
             Ok(R::read_from(&mut readable))
