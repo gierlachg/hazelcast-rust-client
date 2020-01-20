@@ -1,13 +1,13 @@
 use crate::{
     codec::{Readable, Reader, Writeable, Writer},
-    message::Payload,
+    messaging::{Request, Response},
     protocol::Address,
 };
 
 const AUTHENTICATION_REQUEST_MESSAGE_TYPE: u16 = 0x2;
 const AUTHENTICATION_RESPONSE_MESSAGE_TYPE: u16 = 0x6B;
 
-#[derive(Debug, Eq, PartialEq, Writer)]
+#[derive(Writer, Eq, PartialEq, Debug)]
 pub(crate) struct AuthenticationRequest<'a> {
     username: &'a str,
     password: &'a str,
@@ -40,7 +40,7 @@ impl<'a> AuthenticationRequest<'a> {
     }
 }
 
-impl<'a> Payload for AuthenticationRequest<'a> {
+impl<'a> Request for AuthenticationRequest<'a> {
     fn r#type() -> u16 {
         AUTHENTICATION_REQUEST_MESSAGE_TYPE
     }
@@ -48,7 +48,7 @@ impl<'a> Payload for AuthenticationRequest<'a> {
     // TODO: partition
 }
 
-#[derive(Debug, Eq, PartialEq, Reader)]
+#[derive(Reader, Eq, PartialEq, Debug)]
 pub(crate) struct AuthenticationResponse {
     failure: bool,
     address: Option<Address>,
@@ -76,13 +76,13 @@ impl AuthenticationResponse {
     }
 }
 
-impl Payload for AuthenticationResponse {
+impl Response for AuthenticationResponse {
     fn r#type() -> u16 {
         AUTHENTICATION_RESPONSE_MESSAGE_TYPE
     }
 }
 
-#[derive(Debug, Eq, PartialEq, Reader)]
+#[derive(Reader, Eq, PartialEq, Debug)]
 pub(crate) struct ClusterMember {
     address: Address,
     id: String,
@@ -90,7 +90,7 @@ pub(crate) struct ClusterMember {
     attributes: Vec<AttributeEntry>,
 }
 
-#[derive(Debug, Eq, PartialEq, Clone, Reader)]
+#[derive(Reader, Eq, PartialEq, Debug, Clone)]
 pub(crate) struct AttributeEntry {
     _key: String,
     _value: String,

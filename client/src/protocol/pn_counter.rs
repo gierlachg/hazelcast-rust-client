@@ -2,7 +2,7 @@ use std::sync::Arc;
 
 use crate::{
     codec::{Readable, Reader, Writeable, Writer},
-    message::Payload,
+    messaging::{Request, Response},
     protocol::Address,
     remote::cluster::Cluster,
     Result,
@@ -70,7 +70,7 @@ impl PnCounter {
     }
 }
 
-#[derive(Debug, Eq, PartialEq, Writer)]
+#[derive(Writer, Eq, PartialEq, Debug)]
 struct PnCounterGetRequest<'a> {
     name: &'a str,
     replica_timestamps: &'a [ReplicaTimestampEntry],
@@ -87,7 +87,7 @@ impl<'a> PnCounterGetRequest<'a> {
     }
 }
 
-impl<'a> Payload for PnCounterGetRequest<'a> {
+impl<'a> Request for PnCounterGetRequest<'a> {
     fn r#type() -> u16 {
         GET_REQUEST_MESSAGE_TYPE
     }
@@ -95,7 +95,7 @@ impl<'a> Payload for PnCounterGetRequest<'a> {
     // TODO: partition
 }
 
-#[derive(Debug, Eq, PartialEq, Reader)]
+#[derive(Reader, Eq, PartialEq, Debug)]
 struct PnCounterGetResponse {
     value: i64,
     replica_timestamps: Vec<ReplicaTimestampEntry>,
@@ -111,13 +111,13 @@ impl PnCounterGetResponse {
     }
 }
 
-impl Payload for PnCounterGetResponse {
+impl Response for PnCounterGetResponse {
     fn r#type() -> u16 {
         GET_RESPONSE_MESSAGE_TYPE
     }
 }
 
-#[derive(Debug, Eq, PartialEq, Writer)]
+#[derive(Writer, Eq, PartialEq, Debug)]
 struct PnCounterAddRequest<'a> {
     name: &'a str,
     delta: i64,
@@ -144,7 +144,7 @@ impl<'a> PnCounterAddRequest<'a> {
     }
 }
 
-impl<'a> Payload for PnCounterAddRequest<'a> {
+impl<'a> Request for PnCounterAddRequest<'a> {
     fn r#type() -> u16 {
         ADD_REQUEST_MESSAGE_TYPE
     }
@@ -152,7 +152,7 @@ impl<'a> Payload for PnCounterAddRequest<'a> {
     // TODO: partition
 }
 
-#[derive(Debug, Eq, PartialEq, Reader)]
+#[derive(Reader, Eq, PartialEq, Debug)]
 struct PnCounterAddResponse {
     value: i64,
     replica_timestamps: Vec<ReplicaTimestampEntry>,
@@ -169,19 +169,19 @@ impl PnCounterAddResponse {
     }
 }
 
-impl Payload for PnCounterAddResponse {
+impl Response for PnCounterAddResponse {
     fn r#type() -> u16 {
         ADD_RESPONSE_MESSAGE_TYPE
     }
 }
 
-#[derive(Debug, Eq, PartialEq, Clone, Writer, Reader)]
+#[derive(Writer, Reader, Eq, PartialEq, Debug, Clone)]
 struct ReplicaTimestampEntry {
     key: String,
     value: i64,
 }
 
-#[derive(Debug, Eq, PartialEq, Writer)]
+#[derive(Writer, Eq, PartialEq, Debug)]
 struct PnCounterGetReplicaCountRequest<'a> {
     name: &'a str,
 }
@@ -192,7 +192,7 @@ impl<'a> PnCounterGetReplicaCountRequest<'a> {
     }
 }
 
-impl<'a> Payload for PnCounterGetReplicaCountRequest<'a> {
+impl<'a> Request for PnCounterGetReplicaCountRequest<'a> {
     fn r#type() -> u16 {
         GET_REPLICA_COUNT_REQUEST_MESSAGE_TYPE
     }
@@ -200,12 +200,12 @@ impl<'a> Payload for PnCounterGetReplicaCountRequest<'a> {
     // TODO: partition
 }
 
-#[derive(Debug, Eq, PartialEq, Reader)]
+#[derive(Reader, Eq, PartialEq, Debug)]
 struct PnCounterGetReplicaCountResponse {
     count: u32,
 }
 
-impl Payload for PnCounterGetReplicaCountResponse {
+impl Response for PnCounterGetReplicaCountResponse {
     fn r#type() -> u16 {
         GET_REPLICA_COUNT_RESPONSE_MESSAGE_TYPE
     }

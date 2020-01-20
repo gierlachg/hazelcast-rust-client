@@ -21,7 +21,7 @@ use tokio::{
 use tokio_util::codec::{FramedRead, FramedWrite, LengthDelimitedCodec};
 
 use crate::{
-    message::Message,
+    messaging::Message,
     remote::{
         LENGTH_FIELD_ADJUSTMENT, LENGTH_FIELD_LENGTH, LENGTH_FIELD_OFFSET, MessageCodec, PROTOCOL_SEQUENCE,
     },

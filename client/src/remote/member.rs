@@ -1,7 +1,7 @@
 use std::fmt;
 
 use crate::{
-    message::Message,
+    messaging::Message,
     // TODO: remove dependency to protocol ???
     protocol::{
         authentication::{AuthenticationRequest, AuthenticationResponse},

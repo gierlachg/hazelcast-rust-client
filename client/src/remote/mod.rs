@@ -4,7 +4,7 @@ use bytes::{Buf, Bytes, BytesMut};
 
 use crate::{
     codec::{Readable, Writer},
-    message::Message,
+    messaging::Message,
 };
 
 mod channel;
@@ -76,7 +76,7 @@ mod tests {
             [
                 1,   // version
                 192, // flags
-                1, 0, // message type
+                1, 0, // messaging type
                 13, 0, 0, 0, 0, 0, 0, 0, // correlation id
                 2, 0, 0, 0, // partition id
                 22, 0, // data offset

@@ -11,7 +11,7 @@ pub use protocol::pn_counter::PnCounter;
 use crate::remote::cluster::Cluster;
 
 mod codec;
-mod message;
+mod messaging;
 mod protocol;
 mod remote;
 
@@ -23,7 +23,7 @@ pub enum HazelcastClientError {
     ClusterNonOperational,
     #[error("unable to communicate with the server ({0})")]
     CommunicationFailure(Box<dyn error::Error + Send + Sync>),
-    #[error("server was unable to process message ({0})")]
+    #[error("server was unable to process messaging ({0})")]
     ServerFailure(Box<dyn error::Error + Send + Sync>),
 }
 

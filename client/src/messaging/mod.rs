@@ -8,12 +8,16 @@ use crate::{
     TryFrom,
 };
 
-pub(crate) trait Payload {
+pub(crate) trait Request: Writer {
     fn r#type() -> u16;
 
     fn partition_id(&self) -> i32 {
         -1
     }
+}
+
+pub(crate) trait Response: Reader {
+    fn r#type() -> u16;
 }
 
 #[derive(Eq, PartialEq)]
@@ -66,35 +70,29 @@ impl fmt::Debug for Message {
     }
 }
 
-impl<T> From<T> for Message
-where
-    T: Payload + Writer,
-{
-    fn from(payload: T) -> Self {
-        let mut bytes = BytesMut::with_capacity(payload.length());
-        payload.write_to(&mut bytes);
+impl<R: Request> From<R> for Message {
+    fn from(request: R) -> Self {
+        let mut bytes = BytesMut::with_capacity(request.length());
+        request.write_to(&mut bytes);
 
-        Message::new(T::r#type(), payload.partition_id(), bytes.to_bytes())
+        Message::new(R::r#type(), request.partition_id(), bytes.to_bytes())
     }
 }
 
-impl<T> TryFrom<T> for Message
-where
-    T: Payload + Reader,
-{
+impl<R: Response> TryFrom<R> for Message {
     type Error = HazelcastClientError;
 
-    fn try_from(self) -> Result<T, Self::Error> {
+    fn try_from(self) -> Result<R, Self::Error> {
         let readable = &mut self.payload();
-        if self.message_type() == T::r#type() {
-            Ok(T::read_from(readable))
+        if self.message_type() == R::r#type() {
+            Ok(R::read_from(readable))
         } else {
             assert_eq!(
                 self.message_type(),
                 Exception::r#type(),
-                "unknown message type: {}, expected: {}",
+                "unknown messaging type: {}, expected: {}",
                 self.message_type(),
-                T::r#type()
+                R::r#type()
             );
             Err(ServerFailure(Box::new(Exception::read_from(readable))))
         }
@@ -141,7 +139,7 @@ impl fmt::Debug for Exception {
     }
 }
 
-impl Payload for Exception {
+impl Response for Exception {
     fn r#type() -> u16 {
         EXCEPTION_MESSAGE_TYPE
     }

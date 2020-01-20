@@ -6,9 +6,8 @@ use std::{
 use log::{error, info};
 
 use crate::{
-    codec::Reader,
     HazelcastClientError::ClusterNonOperational,
-    message::{Message, Payload},
+    messaging::{Message, Response},
     // TODO: remove dependency to protocol ???
     protocol::Address,
     remote::member::Member,
@@ -44,7 +43,7 @@ impl Cluster {
     pub(crate) async fn dispatch<I, O>(&self, message: I) -> Result<O>
         where
             I: Into<Message>,
-            O: Payload + Reader,
+            O: Response,
     {
         match self.members.next() {
             Some(member) => {
