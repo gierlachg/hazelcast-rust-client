@@ -3,8 +3,12 @@ use std::convert::TryInto;
 use bytes::{Buf, Bytes, BytesMut};
 
 use crate::{
-    codec::{Readable, Writer},
-    messaging::Message,
+    codec::{Readable, Reader, Writer},
+    messaging::{Request, Response},
+    // TODO: remove dependency to protocol ???
+    protocol::error::Exception,
+    HazelcastClientError,
+    TryFrom,
 };
 
 mod channel;
@@ -26,64 +30,131 @@ const LENGTH_FIELD_LENGTH: usize = 4;
 const LENGTH_FIELD_ADJUSTMENT: isize = -4;
 const HEADER_LENGTH: usize = 22;
 
-struct MessageCodec {}
+#[derive(Eq, PartialEq, Debug)]
+struct Message(u64, u16, Bytes);
 
-impl MessageCodec {
-    fn encode(message: &Message, correlation_id: u64) -> Bytes {
-        let mut frame = BytesMut::with_capacity(HEADER_LENGTH - LENGTH_FIELD_LENGTH + message.length());
+impl Message {
+    fn id(&self) -> u64 {
+        self.0
+    }
+
+    fn r#type(&self) -> u16 {
+        self.1
+    }
+
+    fn payload(&self) -> Bytes {
+        self.2.clone()
+    }
+}
+
+impl<R: Request> From<(u64, R)> for Message {
+    fn from(message: (u64, R)) -> Self {
+        let mut frame = BytesMut::with_capacity(HEADER_LENGTH - LENGTH_FIELD_LENGTH + message.1.length());
 
         let data_offset: u16 = HEADER_LENGTH.try_into().expect("unable to convert");
 
         PROTOCOL_VERSION.write_to(&mut frame);
         UNFRAGMENTED_MESSAGE.write_to(&mut frame);
-        message.message_type().write_to(&mut frame);
-        correlation_id.write_to(&mut frame);
-        message.partition_id().write_to(&mut frame);
+        R::r#type().write_to(&mut frame);
+        message.0.write_to(&mut frame);
+        message.1.partition_id().write_to(&mut frame);
         data_offset.write_to(&mut frame);
-        message.payload().write_to(&mut frame);
+        message.1.write_to(&mut frame);
 
-        frame.to_bytes()
+        Message(message.0, R::r#type(), frame.to_bytes())
     }
+}
 
-    fn decode(mut frame: Bytes) -> (Message, u64) {
+impl From<Bytes> for Message {
+    fn from(mut frame: Bytes) -> Self {
         let _version = frame.read_u8();
         let _flags = frame.read_u8();
         let message_type = frame.read_u16();
         let correlation_id = frame.read_u64();
-        let partition_id = frame.read_i32();
+        let _partition_id = frame.read_i32();
 
         let data_offset: usize = frame.read_u16().try_into().expect("unable to convert!");
         frame.skip(data_offset - HEADER_LENGTH);
 
-        (Message::new(message_type, partition_id, frame), correlation_id)
+        Message(correlation_id, message_type, frame.to_bytes())
+    }
+}
+
+impl<R: Response> TryFrom<R> for Message {
+    type Error = HazelcastClientError;
+
+    fn try_from(self) -> Result<R, Self::Error> {
+        let r#type = self.r#type();
+        let mut readable: Bytes = self.payload();
+
+        if r#type == R::r#type() {
+            Ok(R::read_from(&mut readable))
+        } else {
+            assert_eq!(
+                r#type,
+                Exception::r#type(),
+                "unknown messaging type: {}, expected: {}",
+                r#type,
+                R::r#type()
+            );
+            Err(HazelcastClientError::ServerFailure(Box::new(Exception::read_from(
+                &mut readable,
+            ))))
+        }
     }
 }
 
 #[cfg(test)]
 mod tests {
-    use bytes::{Buf, Bytes};
+    use bytes::Buf;
+
+    use crate::codec::Writeable;
 
     use super::*;
 
     #[test]
-    fn should_encode_and_decode_message() {
-        let correlation_id = 13;
-        let message = Message::new(1, 2, Bytes::from(vec![3]));
+    fn should_convert_to_message_from_request() {
+        let id = 1;
+        let request = SomeRequest { field: 2 };
 
-        let mut frame = MessageCodec::encode(&message, correlation_id);
+        let message: Message = (id, request).into();
+        assert_eq!(message.id(), id);
+        assert_eq!(message.r#type(), SomeRequest::r#type());
         assert_eq!(
-            frame.bytes(),
+            message.payload().bytes(),
             [
                 1,   // version
                 192, // flags
-                1, 0, // messaging type
-                13, 0, 0, 0, 0, 0, 0, 0, // correlation id
-                2, 0, 0, 0, // partition id
+                105, 0, // type
+                1, 0, 0, 0, 0, 0, 0, 0, // correlation id
+                255, 255, 255, 255, // partition id
                 22, 0, // data offset
-                3  // payload
+                2  // payload
             ]
         );
+    }
 
-        assert_eq!(MessageCodec::decode(frame.to_bytes()), (message, correlation_id));
+    #[test]
+    fn should_convert_to_message_from_bytes() {
+        let bytes = Bytes::copy_from_slice(&[
+            1,   // version
+            192, // flags
+            0x69, 0, // type
+            1, 0, 0, 0, 0, 0, 0, 0, // correlation id
+            255, 255, 255, 255, // partition id
+            22, 0, // data offset
+            2, // payload
+        ]);
+
+        let message: Message = bytes.into();
+        assert_eq!(message.id(), 1);
+        assert_eq!(message.r#type(), 0x69);
+        assert_eq!(message.payload().bytes(), [2]);
+    }
+
+    #[derive(Request, Eq, PartialEq, Debug)]
+    #[r#type = 0x69]
+    struct SomeRequest {
+        field: u8,
     }
 }

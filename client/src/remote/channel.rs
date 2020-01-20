@@ -1,18 +1,19 @@
 use std::{
-    convert::TryInto,
+    collections::HashMap,
     error::Error,
     future::Future,
     pin::Pin,
-    sync::atomic::{AtomicUsize, Ordering},
     task::{Context, Poll},
 };
-use std::collections::HashMap;
 
 use bytes::{Buf, Bytes, BytesMut};
 use futures::SinkExt;
 use log::error;
 use tokio::{
-    net::{tcp::{ReadHalf, WriteHalf}, TcpStream},
+    net::{
+        tcp::{ReadHalf, WriteHalf},
+        TcpStream,
+    },
     prelude::*,
     stream::{Stream, StreamExt},
     sync::{mpsc, oneshot},
@@ -20,25 +21,18 @@ use tokio::{
 };
 use tokio_util::codec::{FramedRead, FramedWrite, LengthDelimitedCodec};
 
-use crate::{
-    messaging::Message,
-    remote::{
-        LENGTH_FIELD_ADJUSTMENT, LENGTH_FIELD_LENGTH, LENGTH_FIELD_OFFSET, MessageCodec, PROTOCOL_SEQUENCE,
-    },
-};
+use crate::remote::{Message, LENGTH_FIELD_ADJUSTMENT, LENGTH_FIELD_LENGTH, LENGTH_FIELD_OFFSET, PROTOCOL_SEQUENCE};
 
 type Result<T> = std::result::Result<T, Box<dyn Error + Send + Sync>>;
 type Responder = oneshot::Sender<Message>;
-type Frame = (Bytes, u64, Responder);
 
 enum Event {
-    Egress(Frame),
+    Egress((Message, Responder)),
     Ingress(BytesMut),
 }
 
 pub(in crate::remote) struct Channel {
-    sequence: AtomicUsize,
-    egress: mpsc::UnboundedSender<Frame>,
+    egress: mpsc::UnboundedSender<(Message, Responder)>,
 }
 
 impl Channel {
@@ -55,19 +49,19 @@ impl Channel {
             let mut correlations = HashMap::with_capacity(1024);
             while let Some(event) = events.next().await {
                 match event {
-                    Ok(Event::Egress((frame, correlation_id, responder))) => {
-                        writer.write(frame).await?;
-                        correlations.insert(correlation_id, responder);
+                    Ok(Event::Egress((message, responder))) => {
+                        writer.write(message.payload()).await?;
+                        correlations.insert(message.id(), responder);
                     }
                     Ok(Event::Ingress(mut frame)) => {
-                        let (message, correlation_id) = MessageCodec::decode(frame.to_bytes());
+                        let message: Message = frame.to_bytes().into();
                         match correlations
-                            .remove(&correlation_id)
+                            .remove(&message.id())
                             .expect("missing correlation!")
                             .send(message)
-                            {
-                                _ => {} // TODO:
-                            }
+                        {
+                            _ => {} // TODO:
+                        }
                     }
                     Err(e) => {
                         return Err(e);
@@ -77,14 +71,12 @@ impl Channel {
             Ok(())
         });
 
-        Ok(Channel { sequence: AtomicUsize::new(1), egress: sender })
+        Ok(Channel { egress: sender })
     }
 
     pub(in crate::remote) async fn send(&self, message: Message) -> Result<Message> {
-        let correlation_id: u64 = self.sequence.fetch_add(1, Ordering::SeqCst).try_into().expect("unable to convert!");
-        let frame = MessageCodec::encode(&message, correlation_id);
         let (sender, receiver) = oneshot::channel();
-        self.egress.send((frame, correlation_id, sender))?;
+        self.egress.send((message, sender))?;
         Ok(receiver.await?)
     }
 }
@@ -111,15 +103,12 @@ impl<'a> Writer<'a> {
 }
 
 struct Broker<'a> {
-    egress: mpsc::UnboundedReceiver<Frame>,
+    egress: mpsc::UnboundedReceiver<(Message, Responder)>,
     ingress: FramedRead<ReadHalf<'a>, LengthDelimitedCodec>,
 }
 
 impl<'a> Broker<'a> {
-    fn new(
-        messages: mpsc::UnboundedReceiver<Frame>,
-        reader: ReadHalf<'a>,
-    ) -> Self {
+    fn new(messages: mpsc::UnboundedReceiver<(Message, Responder)>, reader: ReadHalf<'a>) -> Self {
         let reader = LengthDelimitedCodec::builder()
             .length_field_offset(LENGTH_FIELD_OFFSET)
             .length_field_length(LENGTH_FIELD_LENGTH)
@@ -127,7 +116,10 @@ impl<'a> Broker<'a> {
             .little_endian()
             .new_read(reader);
 
-        Broker { egress: messages, ingress: reader }
+        Broker {
+            egress: messages,
+            ingress: reader,
+        }
     }
 }
 
@@ -135,8 +127,8 @@ impl Stream for Broker<'_> {
     type Item = Result<Event>;
 
     fn poll_next(mut self: Pin<&mut Self>, cx: &mut Context<'_>) -> Poll<Option<Self::Item>> {
-        if let Poll::Ready(Some((frame, correlation_id, responder))) = Pin::new(&mut self.egress).poll_next(cx) {
-            return Poll::Ready(Some(Ok(Event::Egress((frame, correlation_id, responder)))));
+        if let Poll::Ready(Some(payload)) = Pin::new(&mut self.egress).poll_next(cx) {
+            return Poll::Ready(Some(Ok(Event::Egress(payload))));
         }
         // TODO: handle end of stream...
 
@@ -150,8 +142,8 @@ impl Stream for Broker<'_> {
 }
 
 fn spawn<F>(future: F) -> task::JoinHandle<()>
-    where
-        F: Future<Output=Result<()>> + Send + 'static,
+where
+    F: Future<Output = Result<()>> + Send + 'static,
 {
     tokio::spawn(async move {
         if let Err(e) = future.await {

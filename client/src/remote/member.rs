@@ -1,4 +1,8 @@
-use std::fmt;
+use std::{
+    convert::TryInto,
+    fmt,
+    sync::atomic::{AtomicUsize, Ordering},
+};
 
 use crate::{
     messaging::{Request, Response},
@@ -21,6 +25,8 @@ pub(in crate::remote) struct Member {
     address: Option<Address>,
 
     endpoint: String,
+
+    sequencer: AtomicUsize,
     channel: Channel,
 }
 
@@ -31,9 +37,8 @@ impl Member {
             Err(e) => return Err(CommunicationFailure(e)),
         };
 
-        let request =
-            AuthenticationRequest::new(username, password, CLIENT_TYPE, PROTOCOL_VERSION, CLIENT_VERSION).into();
-        match channel.send(request).await {
+        let request = AuthenticationRequest::new(username, password, CLIENT_TYPE, PROTOCOL_VERSION, CLIENT_VERSION);
+        match channel.send((0, request).into()).await {
             Ok(response) => {
                 let response = TryFrom::<AuthenticationResponse>::try_from(response)?;
                 if response.failure() {
@@ -44,6 +49,7 @@ impl Member {
                         owner_id: response.owner_id().clone(),
                         address: response.address().clone(), // TODO: is it the same as endpoint ???
                         endpoint: endpoint.to_string(),
+                        sequencer: AtomicUsize::new(1),
                         channel,
                     })
                 }
@@ -53,7 +59,14 @@ impl Member {
     }
 
     pub(in crate::remote) async fn send<RQ: Request, RS: Response>(&self, request: RQ) -> Result<RS> {
-        match self.channel.send(request.into()).await {
+        let id: u64 = self
+            .sequencer
+            .fetch_add(1, Ordering::SeqCst)
+            .try_into()
+            .expect("unable to convert!");
+        let message = (id, request).into();
+
+        match self.channel.send(message).await {
             Ok(message) => TryFrom::<RS>::try_from(message),
             Err(e) => Err(CommunicationFailure(e)),
         }

@@ -1,6 +1,7 @@
 use crate::codec::{Readable, Reader, Writeable, Writer};
 
 pub(crate) mod authentication;
+pub(crate) mod error;
 pub mod pn_counter;
 
 #[derive(Writer, Reader, Eq, PartialEq, Debug, Clone)]
