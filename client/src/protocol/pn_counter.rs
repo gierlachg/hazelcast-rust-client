@@ -3,19 +3,10 @@ use std::sync::Arc;
 use crate::{
     codec::{Readable, Reader, Writeable, Writer},
     messaging::{Request, Response},
-    protocol::Address,
+    protocol::{Address, ReplicaTimestampEntry},
     remote::cluster::Cluster,
     Result,
 };
-
-const GET_REQUEST_MESSAGE_TYPE: u16 = 0x2001;
-const GET_RESPONSE_MESSAGE_TYPE: u16 = 0x7F;
-
-const ADD_REQUEST_MESSAGE_TYPE: u16 = 0x2002;
-const ADD_RESPONSE_MESSAGE_TYPE: u16 = 0x7F;
-
-const GET_REPLICA_COUNT_REQUEST_MESSAGE_TYPE: u16 = 0x2003;
-const GET_REPLICA_COUNT_RESPONSE_MESSAGE_TYPE: u16 = 0x66;
 
 pub struct PnCounter {
     name: String,
@@ -70,7 +61,8 @@ impl PnCounter {
     }
 }
 
-#[derive(Writer, Eq, PartialEq, Debug)]
+#[derive(Request, Eq, PartialEq, Debug)]
+#[r#type = 0x2001]
 struct PnCounterGetRequest<'a> {
     name: &'a str,
     replica_timestamps: &'a [ReplicaTimestampEntry],
@@ -87,15 +79,8 @@ impl<'a> PnCounterGetRequest<'a> {
     }
 }
 
-impl<'a> Request for PnCounterGetRequest<'a> {
-    fn r#type() -> u16 {
-        GET_REQUEST_MESSAGE_TYPE
-    }
-
-    // TODO: partition
-}
-
-#[derive(Reader, Eq, PartialEq, Debug)]
+#[derive(Response, Eq, PartialEq, Debug)]
+#[r#type = 0x7F]
 struct PnCounterGetResponse {
     value: i64,
     replica_timestamps: Vec<ReplicaTimestampEntry>,
@@ -111,13 +96,8 @@ impl PnCounterGetResponse {
     }
 }
 
-impl Response for PnCounterGetResponse {
-    fn r#type() -> u16 {
-        GET_RESPONSE_MESSAGE_TYPE
-    }
-}
-
-#[derive(Writer, Eq, PartialEq, Debug)]
+#[derive(Request, Eq, PartialEq, Debug)]
+#[r#type = 0x2002]
 struct PnCounterAddRequest<'a> {
     name: &'a str,
     delta: i64,
@@ -144,15 +124,8 @@ impl<'a> PnCounterAddRequest<'a> {
     }
 }
 
-impl<'a> Request for PnCounterAddRequest<'a> {
-    fn r#type() -> u16 {
-        ADD_REQUEST_MESSAGE_TYPE
-    }
-
-    // TODO: partition
-}
-
-#[derive(Reader, Eq, PartialEq, Debug)]
+#[derive(Response, Eq, PartialEq, Debug)]
+#[r#type = 0x7F]
 struct PnCounterAddResponse {
     value: i64,
     replica_timestamps: Vec<ReplicaTimestampEntry>,
@@ -169,19 +142,8 @@ impl PnCounterAddResponse {
     }
 }
 
-impl Response for PnCounterAddResponse {
-    fn r#type() -> u16 {
-        ADD_RESPONSE_MESSAGE_TYPE
-    }
-}
-
-#[derive(Writer, Reader, Eq, PartialEq, Debug, Clone)]
-struct ReplicaTimestampEntry {
-    key: String,
-    value: i64,
-}
-
-#[derive(Writer, Eq, PartialEq, Debug)]
+#[derive(Request, Eq, PartialEq, Debug)]
+#[r#type = 0x2003]
 struct PnCounterGetReplicaCountRequest<'a> {
     name: &'a str,
 }
@@ -192,23 +154,10 @@ impl<'a> PnCounterGetReplicaCountRequest<'a> {
     }
 }
 
-impl<'a> Request for PnCounterGetReplicaCountRequest<'a> {
-    fn r#type() -> u16 {
-        GET_REPLICA_COUNT_REQUEST_MESSAGE_TYPE
-    }
-
-    // TODO: partition
-}
-
-#[derive(Reader, Eq, PartialEq, Debug)]
+#[derive(Response, Eq, PartialEq, Debug)]
+#[r#type = 0x66]
 struct PnCounterGetReplicaCountResponse {
     count: u32,
-}
-
-impl Response for PnCounterGetReplicaCountResponse {
-    fn r#type() -> u16 {
-        GET_REPLICA_COUNT_RESPONSE_MESSAGE_TYPE
-    }
 }
 
 impl PnCounterGetReplicaCountResponse {
@@ -318,40 +267,6 @@ mod tests {
                 value,
                 replica_timestamps,
                 _replica_count: replica_count,
-            }
-        );
-    }
-
-    #[test]
-    fn should_write_replica_timestamp_entry() {
-        let replica_timestamp = ReplicaTimestampEntry {
-            key: "key".to_string(),
-            value: 69,
-        };
-
-        let writeable = &mut BytesMut::new();
-        replica_timestamp.write_to(writeable);
-
-        let readable = &mut writeable.to_bytes();
-        assert_eq!(String::read_from(readable), replica_timestamp.key);
-        assert_eq!(i64::read_from(readable), replica_timestamp.value);
-    }
-
-    #[test]
-    fn should_read_replica_timestamp_entry() {
-        let key = "key";
-        let value = 12;
-
-        let writeable = &mut BytesMut::new();
-        key.write_to(writeable);
-        value.write_to(writeable);
-
-        let readable = &mut writeable.to_bytes();
-        assert_eq!(
-            ReplicaTimestampEntry::read_from(readable),
-            ReplicaTimestampEntry {
-                key: key.to_string(),
-                value,
             }
         );
     }

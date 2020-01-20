@@ -1,9 +1,39 @@
 extern crate proc_macro;
 
 use proc_macro2::TokenStream;
-use syn::{parse_macro_input, spanned::Spanned, Data, DeriveInput, Fields, Type};
+use syn::{parse_macro_input, spanned::Spanned, Attribute, Data, DeriveInput, Fields, Lit, Meta, Type};
 
 use quote::{quote, quote_spanned};
+
+#[proc_macro_derive(Request, attributes(r#type))]
+pub fn derive_request(input: proc_macro::TokenStream) -> proc_macro::TokenStream {
+    let input = parse_macro_input!(input as DeriveInput);
+
+    let name = input.ident;
+    let (impl_generics, ty_generics, where_clause) = input.generics.split_for_impl();
+    let type_value = find_attribute_value("r#type", &input.attrs).expect("missing 'type' attribute!");
+    let length_body = length_body(&input.data);
+    let write_to_body = write_to_body(&input.data);
+
+    let expanded = quote! {
+        impl #impl_generics Request for #name #ty_generics #where_clause {
+            fn r#type() -> u16 {
+                #type_value
+            }
+        }
+
+        impl #impl_generics Writer for #name #ty_generics #where_clause {
+            fn length(&self) -> usize {
+                #length_body
+            }
+
+            fn write_to(&self, writeable: &mut dyn Writeable) {
+                #write_to_body
+            }
+        }
+    };
+    proc_macro::TokenStream::from(expanded)
+}
 
 #[proc_macro_derive(Writer)]
 pub fn derive_writer(input: proc_macro::TokenStream) -> proc_macro::TokenStream {
@@ -68,19 +98,26 @@ fn write_to_body(data: &Data) -> TokenStream {
     }
 }
 
-#[proc_macro_derive(Reader)]
-pub fn derive_reader(input: proc_macro::TokenStream) -> proc_macro::TokenStream {
+#[proc_macro_derive(Response, attributes(r#type))]
+pub fn derive_response(input: proc_macro::TokenStream) -> proc_macro::TokenStream {
     let input = parse_macro_input!(input as DeriveInput);
 
     let name = input.ident;
     let (impl_generics, ty_generics, where_clause) = input.generics.split_for_impl();
-    let body = reader_body(&input.data);
+    let type_value = find_attribute_value("r#type", &input.attrs).expect("missing 'type' attribute!");
+    let read_from_body = read_from_body(&input.data);
 
     let expanded = quote! {
+        impl #impl_generics Response for #name #ty_generics #where_clause {
+            fn r#type() -> u16 {
+                 #type_value
+            }
+        }
+
         impl #impl_generics Reader for #name #ty_generics #where_clause {
             fn read_from(readable: &mut dyn Readable) -> Self {
                 #name {
-                    #body
+                    #read_from_body
                 }
             }
         }
@@ -88,7 +125,27 @@ pub fn derive_reader(input: proc_macro::TokenStream) -> proc_macro::TokenStream 
     proc_macro::TokenStream::from(expanded)
 }
 
-fn reader_body(data: &Data) -> TokenStream {
+#[proc_macro_derive(Reader)]
+pub fn derive_reader(input: proc_macro::TokenStream) -> proc_macro::TokenStream {
+    let input = parse_macro_input!(input as DeriveInput);
+
+    let name = input.ident;
+    let (impl_generics, ty_generics, where_clause) = input.generics.split_for_impl();
+    let read_from_body = read_from_body(&input.data);
+
+    let expanded = quote! {
+        impl #impl_generics Reader for #name #ty_generics #where_clause {
+            fn read_from(readable: &mut dyn Readable) -> Self {
+                #name {
+                    #read_from_body
+                }
+            }
+        }
+    };
+    proc_macro::TokenStream::from(expanded)
+}
+
+fn read_from_body(data: &Data) -> TokenStream {
     match *data {
         Data::Struct(ref data) => match data.fields {
             Fields::Named(ref fields) => {
@@ -124,4 +181,20 @@ fn reader_body(data: &Data) -> TokenStream {
         },
         Data::Enum(_) | Data::Union(_) => unimplemented!(),
     }
+}
+
+fn find_attribute_value(name: &str, attributes: &Vec<Attribute>) -> Option<Lit> {
+    attributes
+        .iter()
+        .map(|attribute| attribute.parse_meta().expect("unable to parse attribute!"))
+        .find_map(|meta| match meta {
+            Meta::NameValue(value) => {
+                if value.path.segments.first().expect("missing attribute name!").ident == name {
+                    Some(value.lit)
+                } else {
+                    None
+                }
+            }
+            Meta::Path(_) | Meta::List(_) => unimplemented!(),
+        })
 }

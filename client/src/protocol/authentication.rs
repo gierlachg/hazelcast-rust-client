@@ -1,13 +1,11 @@
 use crate::{
     codec::{Readable, Reader, Writeable, Writer},
     messaging::{Request, Response},
-    protocol::Address,
+    protocol::{Address, ClusterMember},
 };
 
-const AUTHENTICATION_REQUEST_MESSAGE_TYPE: u16 = 0x2;
-const AUTHENTICATION_RESPONSE_MESSAGE_TYPE: u16 = 0x6B;
-
-#[derive(Writer, Eq, PartialEq, Debug)]
+#[derive(Request, Eq, PartialEq, Debug)]
+#[r#type = 0x2]
 pub(crate) struct AuthenticationRequest<'a> {
     username: &'a str,
     password: &'a str,
@@ -40,15 +38,8 @@ impl<'a> AuthenticationRequest<'a> {
     }
 }
 
-impl<'a> Request for AuthenticationRequest<'a> {
-    fn r#type() -> u16 {
-        AUTHENTICATION_REQUEST_MESSAGE_TYPE
-    }
-
-    // TODO: partition
-}
-
-#[derive(Reader, Eq, PartialEq, Debug)]
+#[derive(Response, Eq, PartialEq, Debug)]
+#[r#type = 0x6B]
 pub(crate) struct AuthenticationResponse {
     failure: bool,
     address: Option<Address>,
@@ -74,26 +65,6 @@ impl AuthenticationResponse {
     pub(crate) fn owner_id(&self) -> &Option<String> {
         &self.owner_id
     }
-}
-
-impl Response for AuthenticationResponse {
-    fn r#type() -> u16 {
-        AUTHENTICATION_RESPONSE_MESSAGE_TYPE
-    }
-}
-
-#[derive(Reader, Eq, PartialEq, Debug)]
-pub(crate) struct ClusterMember {
-    address: Address,
-    id: String,
-    lite: bool,
-    attributes: Vec<AttributeEntry>,
-}
-
-#[derive(Reader, Eq, PartialEq, Debug, Clone)]
-pub(crate) struct AttributeEntry {
-    _key: String,
-    _value: String,
 }
 
 #[cfg(test)]
@@ -149,52 +120,6 @@ mod tests {
                 owner_id: owner_id.map(str::to_string),
                 _serialization_version: protocol_version,
                 _unregistered_cluster_members: None,
-            }
-        );
-    }
-
-    #[test]
-    fn should_read_cluster_member() {
-        let address = Address {
-            host: "localhost".to_string(),
-            port: 5701,
-        };
-        let id = "id";
-        let lite = true;
-
-        let writeable = &mut BytesMut::new();
-        address.write_to(writeable);
-        id.write_to(writeable);
-        lite.write_to(writeable);
-        0u32.write_to(writeable);
-
-        let readable = &mut writeable.to_bytes();
-        assert_eq!(
-            ClusterMember::read_from(readable),
-            ClusterMember {
-                address,
-                id: id.to_string(),
-                lite,
-                attributes: vec!(),
-            }
-        );
-    }
-
-    #[test]
-    fn should_read_attribute() {
-        let key = "key";
-        let value = "value";
-
-        let writeable = &mut BytesMut::new();
-        key.write_to(writeable);
-        value.write_to(writeable);
-
-        let readable = &mut writeable.to_bytes();
-        assert_eq!(
-            AttributeEntry::read_from(readable),
-            AttributeEntry {
-                _key: key.to_string(),
-                _value: value.to_string(),
             }
         );
     }
