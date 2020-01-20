@@ -135,18 +135,9 @@ fn response_body(input: &DeriveInput) -> TokenStream {
 pub fn derive_reader(input: proc_macro::TokenStream) -> proc_macro::TokenStream {
     let input = parse_macro_input!(input as DeriveInput);
 
-    let name = input.ident;
-    let (impl_generics, ty_generics, where_clause) = input.generics.split_for_impl();
-    let read_from_body = read_from_body(&input.data);
-
+    let reader_body = reader_body(&input);
     let expanded = quote! {
-        impl #impl_generics Reader for #name #ty_generics #where_clause {
-            fn read_from(readable: &mut dyn Readable) -> Self {
-                #name {
-                    #read_from_body
-                }
-            }
-        }
+        #reader_body
     };
     proc_macro::TokenStream::from(expanded)
 }
