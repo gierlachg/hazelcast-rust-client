@@ -1,4 +1,4 @@
-name: Rust
+name: Build & Test
 
 on: [push]
 
@@ -16,10 +16,7 @@ jobs:
             toolchain: nightly
             override: true
 
-      # `cargo check` command here will use installed `nightly`
-      # as it set as an "override" for current directory
-
-      - name: Run cargo test
+      - name: cargo test
         uses: actions-rs/cargo@v1
         with:
           command: test
