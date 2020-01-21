@@ -1,10 +1,5 @@
 use std::{error::Error, fmt};
 
-use crate::{
-    codec::{Readable, Reader},
-    messaging::Response,
-};
-
 #[derive(Response, Eq, PartialEq)]
 #[r#type = 0x6D]
 pub(crate) struct Exception {
@@ -69,7 +64,7 @@ impl fmt::Display for StackTraceEntry {
 mod tests {
     use bytes::{Buf, BytesMut};
 
-    use crate::codec::Writer;
+    use crate::codec::{Reader, Writer};
 
     use super::*;
 

@@ -1,5 +1,3 @@
-use crate::codec::{Readable, Reader, Writeable, Writer};
-
 pub(crate) mod authentication;
 pub(crate) mod error;
 pub mod pn_counter;
@@ -33,6 +31,8 @@ struct ReplicaTimestampEntry {
 #[cfg(test)]
 mod tests {
     use bytes::{Buf, BytesMut};
+
+    use crate::codec::{Reader, Writer};
 
     use super::*;
 

@@ -108,8 +108,6 @@ impl<R: Response> TryFrom<R> for Message {
 mod tests {
     use bytes::Buf;
 
-    use crate::codec::Writeable;
-
     use super::*;
 
     #[test]

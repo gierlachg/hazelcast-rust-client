@@ -1,8 +1,6 @@
 use std::sync::Arc;
 
 use crate::{
-    codec::{Readable, Reader, Writeable, Writer},
-    messaging::{Request, Response},
     protocol::{Address, ReplicaTimestampEntry},
     remote::cluster::Cluster,
     Result,
@@ -171,6 +169,8 @@ mod tests {
     use std::ops::Deref;
 
     use bytes::{Buf, BytesMut};
+
+    use crate::codec::{Reader, Writer};
 
     use super::*;
 

@@ -1,8 +1,4 @@
-use crate::{
-    codec::{Readable, Reader, Writeable, Writer},
-    messaging::{Request, Response},
-    protocol::{Address, ClusterMember},
-};
+use crate::protocol::{Address, ClusterMember};
 
 #[derive(Request, Eq, PartialEq, Debug)]
 #[r#type = 0x2]
@@ -70,6 +66,8 @@ impl AuthenticationResponse {
 #[cfg(test)]
 mod tests {
     use bytes::{Buf, BytesMut};
+
+    use crate::codec::{Reader, Writer};
 
     use super::*;
 

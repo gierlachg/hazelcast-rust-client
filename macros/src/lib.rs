@@ -25,7 +25,7 @@ fn request_body(input: &DeriveInput) -> TokenStream {
     let type_value = find_attribute_value("r#type", &input.attrs).expect("missing 'type' attribute!");
 
     quote! {
-        impl #impl_generics Request for #name #ty_generics #where_clause {
+        impl #impl_generics crate::messaging::Request for #name #ty_generics #where_clause {
             fn r#type() -> u16 {
                 #type_value
             }
@@ -51,12 +51,12 @@ fn writer_body(input: &DeriveInput) -> TokenStream {
     let write_to_body = write_to_body(&input.data);
 
     quote! {
-        impl #impl_generics Writer for #name #ty_generics #where_clause {
+        impl #impl_generics crate::codec::Writer for #name #ty_generics #where_clause {
             fn length(&self) -> usize {
                 #length_body
             }
 
-            fn write_to(&self, writeable: &mut dyn Writeable) {
+            fn write_to(&self, writeable: &mut dyn crate::codec::Writeable) {
                 #write_to_body
             }
         }
@@ -123,7 +123,7 @@ fn response_body(input: &DeriveInput) -> TokenStream {
     let type_value = find_attribute_value("r#type", &input.attrs).expect("missing 'type' attribute!");
 
     quote! {
-        impl #impl_generics Response for #name #ty_generics #where_clause {
+        impl #impl_generics crate::messaging::Response for #name #ty_generics #where_clause {
             fn r#type() -> u16 {
                  #type_value
             }
@@ -148,8 +148,8 @@ fn reader_body(input: &DeriveInput) -> TokenStream {
     let read_from_body = read_from_body(&input.data);
 
     quote! {
-        impl #impl_generics Reader for #name #ty_generics #where_clause {
-            fn read_from(readable: &mut dyn Readable) -> Self {
+        impl #impl_generics crate::codec::Reader for #name #ty_generics #where_clause {
+            fn read_from(readable: &mut dyn crate::codec::Readable) -> Self {
                 #name {
                     #read_from_body
                 }
