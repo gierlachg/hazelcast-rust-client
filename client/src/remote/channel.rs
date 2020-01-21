@@ -1,19 +1,14 @@
 use std::{
-    collections::HashMap,
     error::Error,
     pin::Pin,
     task::{Context, Poll},
 };
 
 use bytes::{Buf, Bytes, BytesMut};
-use futures::SinkExt;
 use tokio::{
-    net::{
-        tcp::{ReadHalf, WriteHalf},
-        TcpStream,
-    },
+    net::tcp::{ReadHalf, WriteHalf},
     prelude::*,
-    stream::{Stream, StreamExt},
+    stream::Stream,
     sync::{mpsc, oneshot},
 };
 use tokio_util::codec::{FramedRead, FramedWrite, LengthDelimitedCodec};
@@ -34,6 +29,9 @@ pub(in crate::remote) struct Channel {
 
 impl Channel {
     pub(in crate::remote) async fn connect(address: &str) -> Result<Self> {
+        use std::collections::HashMap;
+        use tokio::{net::TcpStream, stream::StreamExt};
+
         let mut stream = TcpStream::connect(address).await?;
         stream.write_all(&PROTOCOL_SEQUENCE).await?;
 
@@ -93,6 +91,8 @@ impl<'a> Writer<'a> {
     }
 
     async fn write(&mut self, frame: Bytes) -> Result<()> {
+        use futures::SinkExt;
+
         Ok(self.writer.send(frame).await?)
     }
 }

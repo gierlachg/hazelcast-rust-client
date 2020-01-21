@@ -3,12 +3,8 @@ use std::convert::TryInto;
 use bytes::{Buf, Bytes, BytesMut};
 
 use crate::{
-    codec::{Readable, Reader, Writer},
     messaging::{Request, Response},
-    // TODO: remove dependency to protocol ???
-    protocol::error::Exception,
-    HazelcastClientError,
-    TryFrom,
+    HazelcastClientError, TryFrom,
 };
 
 mod channel;
@@ -49,6 +45,8 @@ impl Message {
 
 impl<R: Request> From<(u64, R)> for Message {
     fn from(request: (u64, R)) -> Self {
+        use crate::codec::Writer;
+
         let mut frame = BytesMut::with_capacity(HEADER_LENGTH - LENGTH_FIELD_LENGTH + request.1.length());
 
         let data_offset: u16 = HEADER_LENGTH.try_into().expect("unable to convert");
@@ -67,6 +65,8 @@ impl<R: Request> From<(u64, R)> for Message {
 
 impl From<Bytes> for Message {
     fn from(mut frame: Bytes) -> Self {
+        use crate::codec::Readable;
+
         let _version = frame.read_u8();
         let _flags = frame.read_u8();
         let message_type = frame.read_u16();
@@ -84,6 +84,10 @@ impl<R: Response> TryFrom<R> for Message {
     type Error = HazelcastClientError;
 
     fn try_from(self) -> Result<R, Self::Error> {
+        use crate::codec::Reader;
+        // TODO: remove dependency to protocol ???
+        use crate::protocol::error::Exception;
+
         let r#type = self.r#type();
         let mut readable = self.payload();
 

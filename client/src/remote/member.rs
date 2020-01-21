@@ -1,5 +1,4 @@
 use std::{
-    convert::TryInto,
     fmt,
     sync::atomic::{AtomicUsize, Ordering},
 };
@@ -7,10 +6,7 @@ use std::{
 use crate::{
     messaging::{Request, Response},
     // TODO: remove dependency to protocol ???
-    protocol::{
-        authentication::{AuthenticationRequest, AuthenticationResponse},
-        Address,
-    },
+    protocol::Address,
     remote::{channel::Channel, CLIENT_TYPE, CLIENT_VERSION, PROTOCOL_VERSION},
     HazelcastClientError::{CommunicationFailure, InvalidCredentials},
     {Result, TryFrom},
@@ -32,6 +28,9 @@ pub(in crate::remote) struct Member {
 
 impl Member {
     pub(in crate::remote) async fn connect(endpoint: &str, username: &str, password: &str) -> Result<Self> {
+        // TODO: remove dependency to protocol ???
+        use crate::protocol::authentication::{AuthenticationRequest, AuthenticationResponse};
+
         let channel = match Channel::connect(endpoint).await {
             Ok(channel) => channel,
             Err(e) => return Err(CommunicationFailure(e)),
@@ -59,6 +58,8 @@ impl Member {
     }
 
     pub(in crate::remote) async fn send<RQ: Request, RS: Response>(&self, request: RQ) -> Result<RS> {
+        use std::convert::TryInto;
+
         let id: u64 = self
             .sequencer
             .fetch_add(1, Ordering::SeqCst)

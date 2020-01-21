@@ -8,15 +8,11 @@ use std::{
 };
 
 use log::{error, info};
-use tokio::stream::StreamExt;
 
 use crate::{
-    // TODO: remove dependency to protocol ???
     messaging::{Request, Response},
-    protocol::{
-        ping::{PingRequest, PingResponse},
-        Address,
-    },
+    // TODO: remove dependency to protocol ???
+    protocol::Address,
     remote::member::Member,
     HazelcastClientError::ClusterNonOperational,
     Result,
@@ -122,6 +118,10 @@ impl Ping {
     }
 
     async fn ping(&self) {
+        use tokio::stream::StreamExt;
+        // TODO: remove dependency to protocol ???
+        use crate::protocol::ping::{PingRequest, PingResponse};
+
         let mut interval = tokio::time::interval(PING_INTERVAL);
         loop {
             interval.next().await;
