@@ -1,14 +1,12 @@
 use std::{
     collections::HashMap,
     error::Error,
-    future::Future,
     pin::Pin,
     task::{Context, Poll},
 };
 
 use bytes::{Buf, Bytes, BytesMut};
 use futures::SinkExt;
-use log::error;
 use tokio::{
     net::{
         tcp::{ReadHalf, WriteHalf},
@@ -17,7 +15,6 @@ use tokio::{
     prelude::*,
     stream::{Stream, StreamExt},
     sync::{mpsc, oneshot},
-    task,
 };
 use tokio_util::codec::{FramedRead, FramedWrite, LengthDelimitedCodec};
 
@@ -41,7 +38,7 @@ impl Channel {
         stream.write_all(&PROTOCOL_SEQUENCE).await?;
 
         let (sender, receiver) = mpsc::unbounded_channel();
-        spawn(async move {
+        tokio::spawn(async move {
             let (reader, writer) = stream.split();
             let mut writer = Writer::new(writer);
             let mut events = Broker::new(receiver, reader);
@@ -63,9 +60,7 @@ impl Channel {
                             _ => {} // TODO:
                         }
                     }
-                    Err(e) => {
-                        return Err(e);
-                    }
+                    Err(e) => return Err(e),
                 }
             }
             Ok(())
@@ -127,27 +122,16 @@ impl Stream for Broker<'_> {
     type Item = Result<Event>;
 
     fn poll_next(mut self: Pin<&mut Self>, cx: &mut Context<'_>) -> Poll<Option<Self::Item>> {
-        if let Poll::Ready(Some(payload)) = Pin::new(&mut self.egress).poll_next(cx) {
-            return Poll::Ready(Some(Ok(Event::Egress(payload))));
+        match Pin::new(&mut self.egress).poll_next(cx) {
+            Poll::Ready(Some(payload)) => return Poll::Ready(Some(Ok(Event::Egress(payload)))),
+            Poll::Ready(None) => return Poll::Ready(None),
+            Poll::Pending => {}
         }
-        // TODO: handle end of stream...
 
-        let result: Option<_> = futures::ready!(Pin::new(&mut self.ingress).poll_next(cx));
-        Poll::Ready(match result {
+        Poll::Ready(match futures::ready!(Pin::new(&mut self.ingress).poll_next(cx)) {
             Some(Ok(frame)) => Some(Ok(Event::Ingress(frame))),
             Some(Err(e)) => Some(Err(e.into())),
             None => None,
         })
     }
-}
-
-fn spawn<F>(future: F) -> task::JoinHandle<()>
-where
-    F: Future<Output = Result<()>> + Send + 'static,
-{
-    tokio::spawn(async move {
-        if let Err(e) = future.await {
-            error!("{}", e)
-        }
-    })
 }
