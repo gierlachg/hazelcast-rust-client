@@ -105,7 +105,7 @@ impl fmt::Display for Members {
     fn fmt(&self, formatter: &mut fmt::Formatter<'_>) -> fmt::Result {
         let connected = &self.connected;
         write!(formatter, "Members {{size: {}}} [\n", connected.len(),)?;
-        for member in &connected {
+        for member in connected {
             write!(formatter, "\t{}\n", member)?;
         }
         write!(formatter, "]")
