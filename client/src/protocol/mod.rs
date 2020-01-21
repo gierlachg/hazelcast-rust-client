@@ -1,5 +1,6 @@
 pub(crate) mod authentication;
 pub(crate) mod error;
+pub(crate) mod ping;
 pub mod pn_counter;
 
 #[derive(Writer, Reader, Eq, PartialEq, Debug, Clone)]
