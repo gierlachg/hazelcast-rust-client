@@ -18,8 +18,6 @@ use crate::{
     Result,
 };
 
-const PING_INTERVAL: Duration = Duration::from_secs(300);
-
 pub(crate) struct Cluster {
     members: Arc<Members>,
 }
@@ -43,8 +41,8 @@ impl Cluster {
         } else {
             let members = Arc::new(Members::new(members));
 
-            let ping = Ping::new(members.clone());
-            tokio::spawn(async move { ping.ping().await });
+            let pinger = Pinger::new(members.clone());
+            tokio::spawn(async move { pinger.run().await }); // TODO: cancel on drop
 
             Ok(Cluster { members })
         }
@@ -108,16 +106,18 @@ impl fmt::Display for Members {
     }
 }
 
-struct Ping {
+const PING_INTERVAL: Duration = Duration::from_secs(300);
+
+struct Pinger {
     members: Arc<Members>,
 }
 
-impl Ping {
+impl Pinger {
     fn new(members: Arc<Members>) -> Self {
-        Ping { members }
+        Pinger { members }
     }
 
-    async fn ping(&self) {
+    async fn run(&self) {
         use tokio::stream::StreamExt;
         // TODO: remove dependency to protocol ???
         use crate::protocol::ping::{PingRequest, PingResponse};

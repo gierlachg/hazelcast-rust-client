@@ -16,9 +16,20 @@ pub(crate) struct PingResponse {}
 mod tests {
     use bytes::{Buf, BytesMut};
 
-    use crate::codec::Reader;
+    use crate::codec::{Reader, Writer};
 
     use super::*;
+
+    #[test]
+    fn should_write_ping_request() {
+        let request = PingRequest::new();
+
+        let mut writeable = BytesMut::new();
+        request.write_to(&mut writeable);
+
+        let readable = &mut writeable.to_bytes();
+        assert_eq!(readable.bytes(), []);
+    }
 
     #[test]
     fn should_read_ping_response() {
