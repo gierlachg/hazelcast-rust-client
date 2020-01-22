@@ -9,8 +9,8 @@ hazelcast-rust-client-macros = { path = "../macros" }
 
 derive_more = "0.99.2"
 thiserror = "1.0"
-bytes = "0.5.3"
 log = "0.4.8"
+bytes = "0.5.3"
 futures = "0.3.1"
 tokio-util = { version = "0.2.0", features = ["codec"] }
 tokio = { version = "0.2.10", features = ["full"] }

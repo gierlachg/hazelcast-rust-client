@@ -39,7 +39,7 @@ impl fmt::Debug for Exception {
     }
 }
 
-#[derive(Reader, Eq, PartialEq, Debug)]
+#[derive(Reader, Eq, PartialEq)]
 pub(crate) struct StackTraceEntry {
     declaring_class: String,
     method_name: String,
@@ -48,6 +48,12 @@ pub(crate) struct StackTraceEntry {
 }
 
 impl fmt::Display for StackTraceEntry {
+    fn fmt(&self, formatter: &mut fmt::Formatter<'_>) -> fmt::Result {
+        fmt::Debug::fmt(self, formatter)
+    }
+}
+
+impl fmt::Debug for StackTraceEntry {
     fn fmt(&self, formatter: &mut fmt::Formatter<'_>) -> fmt::Result {
         write!(
             formatter,

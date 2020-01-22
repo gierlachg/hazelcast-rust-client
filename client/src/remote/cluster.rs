@@ -1,4 +1,5 @@
 use std::{
+    collections::{HashMap, HashSet},
     fmt,
     sync::{
         atomic::{AtomicUsize, Ordering},
@@ -14,7 +15,7 @@ use crate::{
     messaging::{Request, Response},
     protocol::Address,
     remote::member::Member,
-    HazelcastClientError::ClusterNonOperational,
+    HazelcastClientError::{ClusterNonOperational, NodeNonOperational},
     Result,
 };
 
@@ -27,19 +28,25 @@ impl Cluster {
     where
         E: IntoIterator<Item = &'a str>,
     {
-        let mut members = vec![];
-        for endpoint in endpoints {
+        let mut connected = HashMap::new();
+        let mut disconnected = HashSet::new();
+        for endpoint in endpoints.into_iter().map(|e| e.into()).collect::<HashSet<String>>() {
             info!("Trying to connect to {} as owner member.", endpoint);
-            match Member::connect(endpoint, username, password).await {
-                Ok(member) => members.push(member),
-                Err(e) => error!("Failed to connect to {} - {}", endpoint, e),
+            match Member::connect(&endpoint, username, password).await {
+                Ok(member) => {
+                    connected.insert(member.address().clone(), member);
+                }
+                Err(e) => {
+                    error!("Failed to connect to {} - {}", endpoint, e);
+                    disconnected.insert(endpoint);
+                }
             }
         }
 
-        if members.is_empty() {
+        if connected.is_empty() {
             Err(ClusterNonOperational)
         } else {
-            let members = Arc::new(Members::new(members));
+            let members = Arc::new(Members::new(connected, disconnected));
 
             let pinger = Pinger::new(members.clone());
             tokio::spawn(async move { pinger.run().await }); // TODO: cancel on drop
@@ -48,16 +55,33 @@ impl Cluster {
         }
     }
 
-    // TODO: dispatch based on address ???
-    pub(crate) async fn dispatch<RQ: Request, RS: Response>(&self, request: RQ) -> Result<RS> {
-        match self.members.next() {
+    pub(crate) async fn dispatch<RQ, RS>(&self, request: RQ) -> Result<RS>
+    where
+        RQ: Request,
+        RS: Response,
+    {
+        match self.members.get() {
             Some(member) => member.send(request).await,
             None => Err(ClusterNonOperational),
         }
     }
 
-    pub(crate) fn address(&self) -> &Address {
-        &self.members.connected().next().unwrap().address() // TODO: !?!?!?
+    pub(crate) async fn forward<RQ, RS>(&self, request: RQ, address: &Address) -> Result<RS>
+    where
+        RQ: Request,
+        RS: Response,
+    {
+        match self.members.get_by_address(address) {
+            Some(member) => member.send(request).await,
+            None => Err(NodeNonOperational),
+        }
+    }
+
+    pub(crate) fn address(&self, address: Option<Address>) -> Result<Address> {
+        address
+            .map(|address| self.members.get_by_address(&address).map(|_| address))
+            .unwrap_or_else(|| self.members.get().map(|m| m.address().clone()))
+            .ok_or(ClusterNonOperational)
     }
 }
 
@@ -68,30 +92,36 @@ impl fmt::Display for Cluster {
 }
 
 struct Members {
-    sequence: AtomicUsize,
-    connected: Vec<Member>,
+    connected: HashMap<Address, Member>,
+    _disconnected: HashSet<String>,
+
+    sequencer: AtomicUsize,
 }
 
 impl Members {
-    fn new(members: Vec<Member>) -> Self {
+    fn new(connected: HashMap<Address, Member>, disconnected: HashSet<String>) -> Self {
         Members {
-            sequence: AtomicUsize::new(1),
-            connected: members,
+            connected,
+            _disconnected: disconnected,
+            sequencer: AtomicUsize::new(0),
         }
     }
 
-    fn next(&self) -> Option<&Member> {
-        let connected = &self.connected;
-        if connected.is_empty() {
+    fn get(&self) -> Option<&Member> {
+        if self.connected.is_empty() {
             None
         } else {
-            let index = self.sequence.fetch_add(1, Ordering::SeqCst) % connected.len();
-            Some(&connected[index])
+            let nth = self.sequencer.fetch_add(1, Ordering::SeqCst) % self.connected.len();
+            self.connected.values().nth(nth)
         }
     }
 
-    fn connected(&self) -> impl Iterator<Item = &Member> {
-        self.connected.iter()
+    fn get_by_address(&self, address: &Address) -> Option<&Member> {
+        self.connected.get(address)
+    }
+
+    fn get_all(&self) -> Vec<&Member> {
+        self.connected.values().collect()
     }
 }
 
@@ -99,7 +129,7 @@ impl fmt::Display for Members {
     fn fmt(&self, formatter: &mut fmt::Formatter<'_>) -> fmt::Result {
         let connected = &self.connected;
         write!(formatter, "Members {{size: {}}} [\n", connected.len(),)?;
-        for member in connected {
+        for member in connected.values() {
             write!(formatter, "\t{}\n", member)?;
         }
         write!(formatter, "]")
@@ -125,7 +155,7 @@ impl Pinger {
         let mut interval = tokio::time::interval(PING_INTERVAL);
         loop {
             interval.next().await;
-            for member in self.members.connected() {
+            for member in self.members.get_all() {
                 let _ = member.send::<PingRequest, PingResponse>(PingRequest::new()).await;
             }
         }

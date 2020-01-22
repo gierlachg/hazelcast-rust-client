@@ -9,6 +9,8 @@ use crate::{
 pub struct PnCounter {
     name: String,
     cluster: Arc<Cluster>,
+
+    address: Option<Address>,
     replica_timestamps: Vec<ReplicaTimestampEntry>,
 }
 
@@ -17,15 +19,16 @@ impl PnCounter {
         PnCounter {
             name: name.to_string(),
             cluster,
+            address: None,
             replica_timestamps: vec![],
         }
     }
 
     pub async fn get(&mut self) -> Result<i64> {
-        let address = self.cluster.address(); // TODO: not sure where address should come from, what is its purpose....
-
+        let address = self.cluster.address(self.address.take())?;
         let request = PnCounterGetRequest::new(&self.name, &self.replica_timestamps, &address);
-        let response: PnCounterGetResponse = self.cluster.dispatch(request).await?;
+        let response: PnCounterGetResponse = self.cluster.forward(request, &address).await?;
+        self.address = Some(address);
         self.replica_timestamps = response.replica_timestamps().to_vec();
         Ok(response.value())
     }
@@ -39,11 +42,11 @@ impl PnCounter {
     }
 
     async fn add(&mut self, delta: i64, get_before_update: bool) -> Result<i64> {
-        let address = self.cluster.address(); // TODO: not sure where address should come from, what is its purpose....
-
+        let address = self.cluster.address(self.address.take())?;
         let request =
             PnCounterAddRequest::new(&self.name, delta, get_before_update, &self.replica_timestamps, &address);
-        let response: PnCounterAddResponse = self.cluster.dispatch(request).await?;
+        let response: PnCounterAddResponse = self.cluster.forward(request, &address).await?;
+        self.address = Some(address);
         self.replica_timestamps = response.replica_timestamps().to_vec();
         Ok(response.value())
     }
