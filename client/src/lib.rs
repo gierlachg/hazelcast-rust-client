@@ -17,8 +17,8 @@ mod remote;
 
 #[derive(Error, Debug)]
 pub enum HazelcastClientError {
-    #[error("unable to authenticate")]
-    InvalidCredentials,
+    #[error("unable to authenticate ({0})")]
+    AuthenticationFailure(String),
     #[error("unable to communicate with any cluster member")]
     ClusterNonOperational,
     #[error("unable to communicate with the server ({0})")]

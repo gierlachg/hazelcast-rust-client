@@ -9,9 +9,9 @@ use std::{
 
 use log::{error, info};
 
+// TODO: remove dependency to protocol ???
 use crate::{
     messaging::{Request, Response},
-    // TODO: remove dependency to protocol ???
     protocol::Address,
     remote::member::Member,
     HazelcastClientError::ClusterNonOperational,
@@ -56,7 +56,7 @@ impl Cluster {
         }
     }
 
-    pub(crate) fn address(&self) -> &Option<Address> {
+    pub(crate) fn address(&self) -> &Address {
         &self.members.connected().next().unwrap().address() // TODO: !?!?!?
     }
 }

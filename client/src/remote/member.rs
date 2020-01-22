@@ -1,26 +1,22 @@
-use std::{
-    fmt,
-    sync::atomic::{AtomicUsize, Ordering},
-};
+use std::sync::atomic::{AtomicUsize, Ordering};
 
+use derive_more::Display;
+
+// TODO: remove dependency to protocol ???
 use crate::{
     messaging::{Request, Response},
-    // TODO: remove dependency to protocol ???
-    protocol::Address,
+    protocol::{authentication::AuthenticationStatus, Address},
     remote::{channel::Channel, CLIENT_TYPE, CLIENT_VERSION, PROTOCOL_VERSION},
-    HazelcastClientError::{CommunicationFailure, InvalidCredentials},
+    HazelcastClientError::{AuthenticationFailure, CommunicationFailure},
     {Result, TryFrom},
 };
 
+#[derive(Display)]
+#[display(fmt = "Member {} - {:?}", address, owner_id)]
 pub(in crate::remote) struct Member {
-    // TODO: what is the purpose of it ???
-    _id: Option<String>,
-    // TODO: what is the purpose of it ???
-    owner_id: Option<String>,
-    // TODO: what is the purpose of it ???
-    address: Option<Address>,
-
-    endpoint: String,
+    _id: String,
+    owner_id: String,
+    address: Address,
 
     sequencer: AtomicUsize,
     channel: Channel,
@@ -40,17 +36,15 @@ impl Member {
         match channel.send((0, request).into()).await {
             Ok(response) => {
                 let response = TryFrom::<AuthenticationResponse>::try_from(response)?;
-                if response.failure() {
-                    Err(InvalidCredentials)
-                } else {
-                    Ok(Member {
-                        _id: response.id().clone(),
-                        owner_id: response.owner_id().clone(),
-                        address: response.address().clone(), // TODO: is it the same as endpoint ???
-                        endpoint: endpoint.to_string(),
+                match AuthenticationResponse::status(&response) {
+                    AuthenticationStatus::Authenticated => Ok(Member {
+                        _id: response.id().as_ref().expect("missing id!").clone(),
+                        owner_id: response.owner_id().as_ref().expect("missing owner id!").clone(),
+                        address: response.address().as_ref().expect("missing address!").clone(),
                         sequencer: AtomicUsize::new(1),
                         channel,
-                    })
+                    }),
+                    status => Err(AuthenticationFailure(status.to_string())),
                 }
             }
             Err(e) => Err(CommunicationFailure(e)),
@@ -73,13 +67,7 @@ impl Member {
         }
     }
 
-    pub(in crate::remote) fn address(&self) -> &Option<Address> {
+    pub(in crate::remote) fn address(&self) -> &Address {
         &self.address
-    }
-}
-
-impl fmt::Display for Member {
-    fn fmt(&self, formatter: &mut fmt::Formatter<'_>) -> fmt::Result {
-        write!(formatter, "Member {} - {:?}", self.endpoint, self.owner_id)
     }
 }

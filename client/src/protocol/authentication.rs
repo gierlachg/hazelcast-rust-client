@@ -1,4 +1,5 @@
 use crate::protocol::{Address, ClusterMember};
+use derive_more::Display;
 
 #[derive(Request, Eq, PartialEq, Debug)]
 #[r#type = 0x2]
@@ -34,10 +35,18 @@ impl<'a> AuthenticationRequest<'a> {
     }
 }
 
+#[derive(Display)]
+pub(crate) enum AuthenticationStatus {
+    Authenticated,
+    CredentialsFailed,
+    SerializationVersionMismatch,
+    NotAllowedInCluster,
+}
+
 #[derive(Response, Eq, PartialEq, Debug)]
 #[r#type = 0x6B]
 pub(crate) struct AuthenticationResponse {
-    failure: bool,
+    status: u8,
     address: Option<Address>,
     id: Option<String>,
     owner_id: Option<String>,
@@ -46,8 +55,14 @@ pub(crate) struct AuthenticationResponse {
 }
 
 impl AuthenticationResponse {
-    pub(crate) fn failure(&self) -> bool {
-        self.failure
+    pub(crate) fn status(&self) -> AuthenticationStatus {
+        match &self.status {
+            0 => AuthenticationStatus::Authenticated,
+            1 => AuthenticationStatus::CredentialsFailed,
+            2 => AuthenticationStatus::SerializationVersionMismatch,
+            3 => AuthenticationStatus::NotAllowedInCluster,
+            _ => panic!("unknown status - {}", &self.status),
+        }
     }
 
     pub(crate) fn address(&self) -> &Option<Address> {
@@ -91,7 +106,7 @@ mod tests {
 
     #[test]
     fn should_read_authentication_response() {
-        let failure = false;
+        let status = 0u8;
         let address = Some(Address {
             host: "localhost".to_string(),
             port: 5701,
@@ -101,7 +116,7 @@ mod tests {
         let protocol_version = 1;
 
         let writeable = &mut BytesMut::new();
-        failure.write_to(writeable);
+        status.write_to(writeable);
         address.write_to(writeable);
         id.write_to(writeable);
         owner_id.write_to(writeable);
@@ -112,7 +127,7 @@ mod tests {
         assert_eq!(
             AuthenticationResponse::read_from(readable),
             AuthenticationResponse {
-                failure,
+                status,
                 address,
                 id: id.map(str::to_string),
                 owner_id: owner_id.map(str::to_string),
