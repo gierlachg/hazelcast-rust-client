@@ -40,7 +40,6 @@ impl HazelcastClient {
     {
         info!("HazelcastClient {} is STARTING", env!("CARGO_PKG_VERSION"));
         let cluster = Cluster::connect(endpoints, username, password).await?;
-        info!("{}", cluster);
         info!("HazelcastClient is CONNECTED");
         info!("HazelcastClient is STARTED");
 

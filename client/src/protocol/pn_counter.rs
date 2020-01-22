@@ -25,7 +25,7 @@ impl PnCounter {
     }
 
     pub async fn get(&mut self) -> Result<i64> {
-        let address = self.cluster.address(self.address.take())?;
+        let address = self.cluster.address(self.address.take()).await?;
         let request = PnCounterGetRequest::new(&self.name, &self.replica_timestamps, &address);
         let response: PnCounterGetResponse = self.cluster.forward(request, &address).await?;
         self.address = Some(address);
@@ -42,7 +42,7 @@ impl PnCounter {
     }
 
     async fn add(&mut self, delta: i64, get_before_update: bool) -> Result<i64> {
-        let address = self.cluster.address(self.address.take())?;
+        let address = self.cluster.address(self.address.take()).await?;
         let request =
             PnCounterAddRequest::new(&self.name, delta, get_before_update, &self.replica_timestamps, &address);
         let response: PnCounterAddResponse = self.cluster.forward(request, &address).await?;

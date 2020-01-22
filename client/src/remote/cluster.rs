@@ -1,15 +1,11 @@
 use std::{
     collections::{HashMap, HashSet},
-    fmt,
-    sync::{
-        atomic::{AtomicUsize, Ordering},
-        Arc,
-    },
+    sync::Arc,
     time::Duration,
 };
 
-use derive_more::Display;
 use log::{error, info};
+use tokio::sync::Mutex;
 
 // TODO: remove dependency to protocol ???
 use crate::{
@@ -20,8 +16,6 @@ use crate::{
     Result,
 };
 
-#[derive(Display)]
-#[display(fmt = "\n\n{}\n", members)]
 pub(crate) struct Cluster {
     members: Arc<Members>,
 }
@@ -45,6 +39,7 @@ impl Cluster {
                 }
             }
         }
+        info!("\n\n{}\n", Cluster::format(&connected));
 
         if connected.is_empty() {
             Err(ClusterNonOperational)
@@ -58,12 +53,22 @@ impl Cluster {
         }
     }
 
+    fn format(members: &HashMap<Address, Member>) -> String {
+        let mut s = String::new();
+        s.push_str(&format!("Members {{size: {}}} [\n", members.len()));
+        for member in members.values() {
+            s.push_str(&format!("\t{}\n", member));
+        }
+        s.push_str("]");
+        s
+    }
+
     pub(crate) async fn dispatch<RQ, RS>(&self, request: RQ) -> Result<RS>
     where
         RQ: Request,
         RS: Response,
     {
-        match self.members.get() {
+        match self.members.get().await {
             Some(member) => member.send(request).await,
             None => Err(ClusterNonOperational),
         }
@@ -74,62 +79,89 @@ impl Cluster {
         RQ: Request,
         RS: Response,
     {
-        match self.members.get_by_address(address) {
+        match self.members.get_by_address(address).await {
             Some(member) => member.send(request).await,
             None => Err(NodeNonOperational),
         }
     }
 
-    pub(crate) fn address(&self, address: Option<Address>) -> Result<Address> {
-        address
-            .map(|address| self.members.get_by_address(&address).map(|_| address))
-            .unwrap_or_else(|| self.members.get().map(|m| m.address().clone()))
-            .ok_or(ClusterNonOperational)
+    pub(crate) async fn address(&self, address: Option<Address>) -> Result<Address> {
+        match match address {
+            Some(address) => self.members.get_by_address(&address).await.map(|_| address),
+            None => self.members.get().await.map(|m| m.address().clone()),
+        } {
+            Some(address) => Ok(address),
+            None => Err(ClusterNonOperational),
+        }
     }
 }
 
 struct Members {
-    connected: HashMap<Address, Member>,
-    _disconnected: HashSet<String>,
-
-    sequencer: AtomicUsize,
+    inner: Mutex<MembersInner>,
 }
 
 impl Members {
     fn new(connected: HashMap<Address, Member>, disconnected: HashSet<String>) -> Self {
         Members {
-            connected,
-            _disconnected: disconnected,
-            sequencer: AtomicUsize::new(0),
+            inner: Mutex::new(MembersInner::new(connected, disconnected)),
         }
     }
 
-    fn get(&self) -> Option<&Member> {
-        if self.connected.is_empty() {
-            None
-        } else {
-            let nth = self.sequencer.fetch_add(1, Ordering::SeqCst) % self.connected.len();
-            self.connected.values().nth(nth)
-        }
+    async fn get(&self) -> Option<Arc<Member>> {
+        self.inner.lock().await.get()
     }
 
-    fn get_by_address(&self, address: &Address) -> Option<&Member> {
-        self.connected.get(address)
+    async fn get_by_address(&self, address: &Address) -> Option<Arc<Member>> {
+        self.inner.lock().await.get_by_address(address).await
     }
 
-    fn get_all(&self) -> Vec<&Member> {
-        self.connected.values().collect()
+    async fn get_all(&self) -> Vec<Arc<Member>> {
+        self.inner.lock().await.get_all()
+    }
+
+    async fn disconnect(&self, address: &Address) {
+        self.inner.lock().await.disconnect(address)
     }
 }
 
-impl fmt::Display for Members {
-    fn fmt(&self, formatter: &mut fmt::Formatter<'_>) -> fmt::Result {
-        let connected = &self.connected;
-        write!(formatter, "Members {{size: {}}} [\n", connected.len(),)?;
-        for member in connected.values() {
-            write!(formatter, "\t{}\n", member)?;
+struct MembersInner {
+    connected: HashMap<Address, Arc<Member>>,
+    disconnected: HashSet<String>,
+    sequencer: usize,
+}
+
+impl MembersInner {
+    fn new(connected: HashMap<Address, Member>, disconnected: HashSet<String>) -> Self {
+        MembersInner {
+            connected: connected.into_iter().map(|e| (e.0, Arc::new(e.1))).collect(),
+            disconnected,
+            sequencer: 0,
         }
-        write!(formatter, "]")
+    }
+
+    fn get(&mut self) -> Option<Arc<Member>> {
+        if self.connected.is_empty() {
+            None
+        } else {
+            self.sequencer += 1;
+            self.connected
+                .values()
+                .nth(self.sequencer % self.connected.len())
+                .map(Arc::clone)
+        }
+    }
+
+    async fn get_by_address(&self, address: &Address) -> Option<Arc<Member>> {
+        self.connected.get(address).map(Arc::clone)
+    }
+
+    fn get_all(&self) -> Vec<Arc<Member>> {
+        self.connected.values().map(Arc::clone).collect()
+    }
+
+    fn disconnect(&mut self, address: &Address) {
+        self.connected.remove(address);
+        self.disconnected.insert(address.to_string());
     }
 }
 
@@ -152,8 +184,10 @@ impl Pinger {
         let mut interval = tokio::time::interval(PING_INTERVAL);
         loop {
             interval.next().await;
-            for member in self.members.get_all() {
-                let _ = member.send::<PingRequest, PingResponse>(PingRequest::new()).await;
+            for member in self.members.get_all().await {
+                if let Err(_) = member.send::<PingRequest, PingResponse>(PingRequest::new()).await {
+                    self.members.disconnect(member.address()).await
+                }
             }
         }
     }
