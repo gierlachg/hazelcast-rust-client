@@ -8,6 +8,7 @@ use std::{
     time::Duration,
 };
 
+use derive_more::Display;
 use log::{error, info};
 
 // TODO: remove dependency to protocol ???
@@ -19,6 +20,8 @@ use crate::{
     Result,
 };
 
+#[derive(Display)]
+#[display(fmt = "\n\n{}\n", members)]
 pub(crate) struct Cluster {
     members: Arc<Members>,
 }
@@ -82,12 +85,6 @@ impl Cluster {
             .map(|address| self.members.get_by_address(&address).map(|_| address))
             .unwrap_or_else(|| self.members.get().map(|m| m.address().clone()))
             .ok_or(ClusterNonOperational)
-    }
-}
-
-impl fmt::Display for Cluster {
-    fn fmt(&self, formatter: &mut fmt::Formatter<'_>) -> fmt::Result {
-        write!(formatter, "\n\n{}\n", self.members)
     }
 }
 
