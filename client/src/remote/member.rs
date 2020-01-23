@@ -4,11 +4,11 @@ use derive_more::Display;
 
 // TODO: remove dependency to protocol ???
 use crate::{
-    messaging::{Request, Response},
-    protocol::{authentication::AuthenticationStatus, Address},
-    remote::{channel::Channel, CLIENT_TYPE, CLIENT_VERSION, PROTOCOL_VERSION},
-    HazelcastClientError::{AuthenticationFailure, CommunicationFailure},
     {Result, TryFrom},
+    HazelcastClientError::{AuthenticationFailure, CommunicationFailure},
+    messaging::{Request, Response},
+    protocol::Address,
+    remote::{channel::Channel, CLIENT_TYPE, CLIENT_VERSION, PROTOCOL_VERSION},
 };
 
 #[derive(Display)]
@@ -18,40 +18,53 @@ pub(in crate::remote) struct Member {
     owner_id: String,
     address: Address,
 
-    sequencer: AtomicUsize,
-    channel: Channel,
+    sender: Sender,
 }
 
 impl Member {
     pub(in crate::remote) async fn connect(endpoint: &str, username: &str, password: &str) -> Result<Self> {
         // TODO: remove dependency to protocol ???
-        use crate::protocol::authentication::{AuthenticationRequest, AuthenticationResponse};
+        use crate::protocol::{authentication::{AuthenticationRequest, AuthenticationResponse, AuthenticationStatus}};
 
         let channel = match Channel::connect(endpoint).await {
             Ok(channel) => channel,
             Err(e) => return Err(CommunicationFailure(e)),
         };
+        let sender = Sender::new(channel);
 
         let request = AuthenticationRequest::new(username, password, CLIENT_TYPE, PROTOCOL_VERSION, CLIENT_VERSION);
-        match channel.send((0, request).into()).await {
-            Ok(response) => {
-                let response = TryFrom::<AuthenticationResponse>::try_from(response)?;
-                match AuthenticationResponse::status(&response) {
-                    AuthenticationStatus::Authenticated => Ok(Member {
-                        _id: response.id().as_ref().expect("missing id!").clone(),
-                        owner_id: response.owner_id().as_ref().expect("missing owner id!").clone(),
-                        address: response.address().as_ref().expect("missing address!").clone(),
-                        sequencer: AtomicUsize::new(1),
-                        channel,
-                    }),
-                    status => Err(AuthenticationFailure(status.to_string())),
-                }
-            }
-            Err(e) => Err(CommunicationFailure(e)),
+        let response: AuthenticationResponse = sender.send(request).await?;
+        match AuthenticationResponse::status(&response) {
+            AuthenticationStatus::Authenticated => Ok(Member {
+                _id: response.id().as_ref().expect("missing id!").clone(),
+                owner_id: response.owner_id().as_ref().expect("missing owner id!").clone(),
+                address: response.address().as_ref().expect("missing address!").clone(),
+                sender,
+            }),
+            status => Err(AuthenticationFailure(status.to_string())),
         }
     }
 
     pub(in crate::remote) async fn send<RQ: Request, RS: Response>(&self, request: RQ) -> Result<RS> {
+        self.sender.send(request).await
+    }
+
+    pub(in crate::remote) fn address(&self) -> &Address {
+        &self.address
+    }
+}
+
+struct Sender {
+    sequencer: AtomicUsize,
+    channel: Channel,
+}
+
+impl Sender {
+    fn new(channel: Channel) -> Self {
+        Sender { sequencer: AtomicUsize::new(0), channel }
+    }
+
+    async fn send<RQ: Request, RS: Response>(&self, request: RQ) -> Result<RS> {
         use std::convert::TryInto;
 
         let id: u64 = self
@@ -65,9 +78,5 @@ impl Member {
             Ok(message) => TryFrom::<RS>::try_from(message),
             Err(e) => Err(CommunicationFailure(e)),
         }
-    }
-
-    pub(in crate::remote) fn address(&self) -> &Address {
-        &self.address
     }
 }

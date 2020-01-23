@@ -12,8 +12,18 @@ pub(crate) struct Address {
     port: u32,
 }
 
+impl Address {
+    #[allow(dead_code)]
+    pub(crate) fn new(host: &str, port: u32) -> Self {
+        Address {
+            host: host.to_string(),
+            port,
+        }
+    }
+}
+
 #[derive(Reader, Eq, PartialEq, Debug)]
-pub(crate) struct ClusterMember {
+struct ClusterMember {
     address: Address,
     id: String,
     lite: bool,
@@ -21,7 +31,7 @@ pub(crate) struct ClusterMember {
 }
 
 #[derive(Reader, Eq, PartialEq, Debug, Clone)]
-pub(crate) struct AttributeEntry {
+struct AttributeEntry {
     _key: String,
     _value: String,
 }

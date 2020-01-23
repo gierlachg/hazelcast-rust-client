@@ -9,10 +9,10 @@ use tokio::sync::Mutex;
 
 // TODO: remove dependency to protocol ???
 use crate::{
+    HazelcastClientError::{ClusterNonOperational, NodeNonOperational},
     messaging::{Request, Response},
     protocol::Address,
     remote::member::Member,
-    HazelcastClientError::{ClusterNonOperational, NodeNonOperational},
     Result,
 };
 
@@ -22,8 +22,8 @@ pub(crate) struct Cluster {
 
 impl Cluster {
     pub(crate) async fn connect<'a, E>(endpoints: E, username: &str, password: &str) -> Result<Self>
-    where
-        E: IntoIterator<Item = &'a str>,
+        where
+            E: IntoIterator<Item=&'a str>,
     {
         let mut connected = HashMap::new();
         let mut disconnected = HashSet::new();
@@ -46,6 +46,7 @@ impl Cluster {
         } else {
             let members = Arc::new(Members::new(connected, disconnected));
 
+            // TODO: reconnecting...,
             let pinger = Pinger::new(members.clone());
             tokio::spawn(async move { pinger.run().await }); // TODO: cancel on drop
 
@@ -64,9 +65,9 @@ impl Cluster {
     }
 
     pub(crate) async fn dispatch<RQ, RS>(&self, request: RQ) -> Result<RS>
-    where
-        RQ: Request,
-        RS: Response,
+        where
+            RQ: Request,
+            RS: Response,
     {
         match self.members.get().await {
             Some(member) => member.send(request).await,
@@ -75,9 +76,9 @@ impl Cluster {
     }
 
     pub(crate) async fn forward<RQ, RS>(&self, request: RQ, address: &Address) -> Result<RS>
-    where
-        RQ: Request,
-        RS: Response,
+        where
+            RQ: Request,
+            RS: Response,
     {
         match self.members.get_by_address(address).await {
             Some(member) => member.send(request).await,
@@ -96,6 +97,7 @@ impl Cluster {
     }
 }
 
+// TODO: replace mutex with something like evmap ???
 struct Members {
     inner: Mutex<MembersInner>,
 }
@@ -119,8 +121,8 @@ impl Members {
         self.inner.lock().await.get_all()
     }
 
-    async fn disconnect(&self, address: &Address) {
-        self.inner.lock().await.disconnect(address)
+    async fn disable(&self, address: &Address) {
+        self.inner.lock().await.disable(address)
     }
 }
 
@@ -147,7 +149,7 @@ impl MembersInner {
             self.connected
                 .values()
                 .nth(self.sequencer % self.connected.len())
-                .map(Arc::clone)
+                .map(Arc::clone) // TODO: O(1) !?
         }
     }
 
@@ -159,7 +161,7 @@ impl MembersInner {
         self.connected.values().map(Arc::clone).collect()
     }
 
-    fn disconnect(&mut self, address: &Address) {
+    fn disable(&mut self, address: &Address) {
         self.connected.remove(address);
         self.disconnected.insert(address.to_string());
     }
@@ -186,9 +188,27 @@ impl Pinger {
             interval.next().await;
             for member in self.members.get_all().await {
                 if let Err(_) = member.send::<PingRequest, PingResponse>(PingRequest::new()).await {
-                    self.members.disconnect(member.address()).await
+                    self.members.disable(member.address()).await
                 }
             }
         }
     }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[tokio::test]
+    async fn should_get_none_for_empty_members() {
+        let connected = HashMap::new();
+        let disconnected = HashSet::new();
+        let members = Members::new(connected, disconnected);
+
+        assert!(members.get().await.is_none());
+        assert!(members.get_by_address(&Address::new("localhost", 5701)).await.is_none());
+        assert!(members.get_all().await.is_empty());
+    }
+
+    // TODO: more tests
 }
