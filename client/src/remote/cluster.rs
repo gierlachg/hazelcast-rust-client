@@ -63,7 +63,7 @@ impl Cluster {
         let mut s = String::new();
         s.push_str(&format!("Members {{size: {}}} [\n", members.len()));
         for member in members.values() {
-            s.push_str(&format!("\t{}\n", member));
+            s.push_str(&format!("\tMember {}\n", member));
         }
         s.push_str("]");
         s
@@ -203,6 +203,7 @@ impl Pinger {
             interval.next().await;
             for member in self.members.get_all().await {
                 if let Err(_) = member.send::<PingRequest, PingResponse>(PingRequest::new()).await {
+                    error!("Pinging {} failed.", member);
                     self.members.disable(member.address()).await
                 }
             }

@@ -15,7 +15,7 @@ use crate::{
 };
 
 #[derive(Display)]
-#[display(fmt = "Member {} - {:?}", address, owner_id)]
+#[display(fmt = "{} - {:?}", address, owner_id)]
 pub(in crate::remote) struct Member {
     _id: String,
     owner_id: String,
