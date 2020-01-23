@@ -2,12 +2,15 @@ use std::{
     collections::{HashMap, HashSet},
     hash::Hash,
     net::SocketAddr,
-    sync::Arc,
+    sync::{
+        atomic::{AtomicUsize, Ordering},
+        Arc,
+    },
     time::Duration,
 };
 
 use log::{error, info};
-use tokio::sync::Mutex;
+use tokio::sync::RwLock;
 
 // TODO: remove dependency to protocol ???
 use crate::{
@@ -89,9 +92,12 @@ impl Cluster {
     }
 
     pub(crate) async fn address(&self, address: Option<Address>) -> Result<Address> {
-        match match address {
+        match match match address {
             Some(address) => self.members.get_by(&address).await.map(|_| address),
-            None => self.members.get().await.map(|m| m.address().clone()),
+            None => None,
+        } {
+            Some(address) => Some(address),
+            None => self.members.get().await.map(|member| member.address().clone()),
         } {
             Some(address) => Ok(address),
             None => Err(ClusterNonOperational),
@@ -99,9 +105,8 @@ impl Cluster {
     }
 }
 
-// TODO: replace mutex with something like evmap ???
 struct Registry<K, V> {
-    inner: Mutex<RegistryInner<K, V>>,
+    inner: RwLock<RegistryInner<K, V>>,
 }
 
 impl<K, V> Registry<K, V>
@@ -110,31 +115,32 @@ where
 {
     fn new(enabled: HashMap<K, V>, disabled: HashSet<K>) -> Self {
         Registry {
-            inner: Mutex::new(RegistryInner::new(enabled, disabled)),
+            inner: RwLock::new(RegistryInner::new(enabled, disabled)),
         }
     }
 
     async fn get(&self) -> Option<Arc<V>> {
-        self.inner.lock().await.get()
+        self.inner.read().await.get()
     }
 
     async fn get_by(&self, key: &K) -> Option<Arc<V>> {
-        self.inner.lock().await.get_by(key).await
+        self.inner.read().await.get_by(key).await
     }
 
     async fn get_all(&self) -> Vec<Arc<V>> {
-        self.inner.lock().await.get_all()
+        self.inner.read().await.get_all()
     }
 
     async fn disable(&self, key: &K) {
-        self.inner.lock().await.disable(key)
+        self.inner.write().await.disable(key)
     }
 }
 
 struct RegistryInner<K, V> {
-    enabled: HashMap<K, Arc<V>>,
+    vec: Vec<(K, Arc<V>)>,
+    map: HashMap<K, Arc<V>>,
     disabled: HashSet<K>,
-    sequencer: usize,
+    sequencer: AtomicUsize,
 }
 
 impl<K, V> RegistryInner<K, V>
@@ -142,35 +148,36 @@ where
     K: Eq + Hash + Clone,
 {
     fn new(enabled: HashMap<K, V>, disabled: HashSet<K>) -> Self {
+        let vec: Vec<(K, Arc<V>)> = enabled.into_iter().map(|(k, v)| (k.clone(), Arc::new(v))).collect();
+        let map = vec.iter().map(|(k, v)| (k.clone(), v.clone())).collect();
         RegistryInner {
-            enabled: enabled.into_iter().map(|e| (e.0, Arc::new(e.1))).collect(),
+            vec,
+            map,
             disabled,
-            sequencer: 0,
+            sequencer: AtomicUsize::new(0),
         }
     }
 
-    fn get(&mut self) -> Option<Arc<V>> {
-        if self.enabled.is_empty() {
+    fn get(&self) -> Option<Arc<V>> {
+        if self.vec.is_empty() {
             None
         } else {
-            self.sequencer += 1;
-            self.enabled
-                .values()
-                .nth(self.sequencer % self.enabled.len())
-                .map(Arc::clone) // TODO: O(1) !?
+            let sequence = self.sequencer.fetch_add(1, Ordering::SeqCst);
+            Some(self.vec[sequence % self.vec.len()].1.clone())
         }
     }
 
     async fn get_by(&self, key: &K) -> Option<Arc<V>> {
-        self.enabled.get(key).map(Arc::clone)
+        self.map.get(key).map(Arc::clone)
     }
 
     fn get_all(&self) -> Vec<Arc<V>> {
-        self.enabled.values().map(Arc::clone).collect()
+        self.vec.iter().map(|(_, v)| v.clone()).collect()
     }
 
     fn disable(&mut self, key: &K) {
-        self.enabled.remove(key);
+        self.vec.iter().position(|(k, _)| k == key).map(|i| self.vec.remove(i));
+        self.map.remove(key);
         self.disabled.insert(key.clone());
     }
 }
