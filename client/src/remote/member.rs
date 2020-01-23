@@ -1,14 +1,17 @@
-use std::sync::atomic::{AtomicUsize, Ordering};
+use std::{
+    net::SocketAddr,
+    sync::atomic::{AtomicUsize, Ordering},
+};
 
 use derive_more::Display;
 
 // TODO: remove dependency to protocol ???
 use crate::{
-    {Result, TryFrom},
-    HazelcastClientError::{AuthenticationFailure, CommunicationFailure},
     messaging::{Request, Response},
     protocol::Address,
     remote::{channel::Channel, CLIENT_TYPE, CLIENT_VERSION, PROTOCOL_VERSION},
+    HazelcastClientError::{AuthenticationFailure, CommunicationFailure},
+    {Result, TryFrom},
 };
 
 #[derive(Display)]
@@ -22,9 +25,9 @@ pub(in crate::remote) struct Member {
 }
 
 impl Member {
-    pub(in crate::remote) async fn connect(endpoint: &str, username: &str, password: &str) -> Result<Self> {
+    pub(in crate::remote) async fn connect(endpoint: &SocketAddr, username: &str, password: &str) -> Result<Self> {
         // TODO: remove dependency to protocol ???
-        use crate::protocol::{authentication::{AuthenticationRequest, AuthenticationResponse, AuthenticationStatus}};
+        use crate::protocol::authentication::{AuthenticationRequest, AuthenticationResponse, AuthenticationStatus};
 
         let channel = match Channel::connect(endpoint).await {
             Ok(channel) => channel,
@@ -61,7 +64,10 @@ struct Sender {
 
 impl Sender {
     fn new(channel: Channel) -> Self {
-        Sender { sequencer: AtomicUsize::new(0), channel }
+        Sender {
+            sequencer: AtomicUsize::new(0),
+            channel,
+        }
     }
 
     async fn send<RQ: Request, RS: Response>(&self, request: RQ) -> Result<RS> {

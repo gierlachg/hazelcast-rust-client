@@ -1,5 +1,6 @@
 use std::{
     error::Error,
+    net::SocketAddr,
     pin::Pin,
     task::{Context, Poll},
 };
@@ -28,7 +29,7 @@ pub(in crate::remote) struct Channel {
 }
 
 impl Channel {
-    pub(in crate::remote) async fn connect(address: &str) -> Result<Self> {
+    pub(in crate::remote) async fn connect(address: &SocketAddr) -> Result<Self> {
         use std::collections::HashMap;
         use tokio::{net::TcpStream, stream::StreamExt};
 

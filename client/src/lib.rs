@@ -1,7 +1,7 @@
 #[macro_use]
 extern crate hazelcast_rust_client_macros;
 
-use std::{error, sync::Arc};
+use std::{error, net::SocketAddr, sync::Arc};
 
 use log::info;
 use thiserror::Error;
@@ -36,7 +36,7 @@ pub struct HazelcastClient {
 impl HazelcastClient {
     pub async fn new<'a, E>(endpoints: E, username: &str, password: &str) -> Result<Self>
     where
-        E: IntoIterator<Item = &'a str>,
+        E: IntoIterator<Item = &'a SocketAddr>,
     {
         info!("HazelcastClient {} is STARTING", env!("CARGO_PKG_VERSION"));
         let cluster = Cluster::connect(endpoints, username, password).await?;

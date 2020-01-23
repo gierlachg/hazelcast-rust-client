@@ -1,3 +1,5 @@
+use std::net::SocketAddr;
+
 use derive_more::Display;
 
 pub(crate) mod authentication;
@@ -12,12 +14,11 @@ pub(crate) struct Address {
     port: u32,
 }
 
-impl Address {
-    #[allow(dead_code)]
-    pub(crate) fn new(host: &str, port: u32) -> Self {
+impl From<&std::net::SocketAddr> for Address {
+    fn from(address: &SocketAddr) -> Self {
         Address {
-            host: host.to_string(),
-            port,
+            host: address.ip().to_string(),
+            port: address.port() as u32,
         }
     }
 }
