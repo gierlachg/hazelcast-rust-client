@@ -163,7 +163,7 @@ where
             None
         } else {
             let sequence = self.sequencer.fetch_add(1, Ordering::SeqCst);
-            Some(self.vec[sequence % self.vec.len()].1.clone())
+            self.vec.get(sequence % self.vec.len()).as_ref().map(|e| e.1.clone())
         }
     }
 
