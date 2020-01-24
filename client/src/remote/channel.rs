@@ -40,7 +40,7 @@ impl Channel {
         tokio::spawn(async move {
             let (reader, writer) = stream.split();
             let mut writer = Writer::new(writer);
-            let mut events = Broker::new(receiver, reader);
+            let mut events = Events::new(receiver, reader);
 
             let mut correlations = HashMap::with_capacity(1024);
             while let Some(event) = events.next().await {
@@ -98,12 +98,12 @@ impl<'a> Writer<'a> {
     }
 }
 
-struct Broker<'a> {
+struct Events<'a> {
     egress: mpsc::UnboundedReceiver<(Message, Responder)>,
     ingress: FramedRead<ReadHalf<'a>, LengthDelimitedCodec>,
 }
 
-impl<'a> Broker<'a> {
+impl<'a> Events<'a> {
     fn new(messages: mpsc::UnboundedReceiver<(Message, Responder)>, reader: ReadHalf<'a>) -> Self {
         let reader = LengthDelimitedCodec::builder()
             .length_field_offset(LENGTH_FIELD_OFFSET)
@@ -112,14 +112,14 @@ impl<'a> Broker<'a> {
             .little_endian()
             .new_read(reader);
 
-        Broker {
+        Events {
             egress: messages,
             ingress: reader,
         }
     }
 }
 
-impl Stream for Broker<'_> {
+impl Stream for Events<'_> {
     type Item = Result<Event>;
 
     fn poll_next(mut self: Pin<&mut Self>, cx: &mut Context<'_>) -> Poll<Option<Self::Item>> {

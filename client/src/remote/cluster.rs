@@ -2,15 +2,21 @@ use std::{
     collections::{HashMap, HashSet},
     hash::Hash,
     net::SocketAddr,
+    pin::Pin,
     sync::{
         atomic::{AtomicUsize, Ordering},
         Arc,
     },
+    task::{Context, Poll},
     time::Duration,
 };
 
 use log::{error, info};
-use tokio::sync::RwLock;
+use tokio::{
+    stream::{Stream, StreamExt},
+    sync::{oneshot, RwLock},
+    time::Interval,
+};
 
 // TODO: remove dependency to protocol ???
 use crate::{
@@ -21,52 +27,86 @@ use crate::{
     Result,
 };
 
+const PING_INTERVAL: Duration = Duration::from_secs(300);
+
 pub(crate) struct Cluster {
     members: Arc<Registry<Address, Member>>,
+    _ping_handle: oneshot::Sender<()>,
 }
 
 impl Cluster {
-    pub(crate) async fn connect<'a, E>(endpoints: E, username: &str, password: &str) -> Result<Self>
+    pub(crate) async fn init<'a, E>(endpoints: E, username: &str, password: &str) -> Result<Self>
     where
         E: IntoIterator<Item = &'a SocketAddr>,
     {
-        let mut enabled = HashMap::new();
-        let mut disabled = HashSet::new();
+        let (connected, disconnected) = Cluster::connect(endpoints, username, password).await?;
+        if connected.is_empty() {
+            Err(ClusterNonOperational)
+        } else {
+            info!("\n\n{}\n", Cluster::format(&connected));
+            let members = Arc::new(Registry::new(connected, disconnected));
+
+            let (ping_handle, receiver) = oneshot::channel();
+            Cluster::ping(members.clone(), receiver);
+
+            // TODO: reconnecting...
+
+            Ok(Cluster {
+                members,
+                _ping_handle: ping_handle,
+            })
+        }
+    }
+
+    async fn connect<'a, E>(
+        endpoints: E,
+        username: &str,
+        password: &str,
+    ) -> Result<(HashMap<Address, Member>, HashSet<Address>)>
+    where
+        E: IntoIterator<Item = &'a SocketAddr>,
+    {
+        let mut connected = HashMap::new();
+        let mut disconnected = HashSet::new();
         for endpoint in endpoints.into_iter().collect::<HashSet<&SocketAddr>>() {
             info!("Trying to connect to {} as owner member.", endpoint);
             match Member::connect(&endpoint, username, password).await {
                 Ok(member) => {
-                    enabled.insert(member.address().clone(), member);
+                    connected.insert(member.address().clone(), member);
                 }
                 Err(e) => {
                     error!("Failed to connect to {} - {}", endpoint, e);
-                    disabled.insert(endpoint.into());
+                    disconnected.insert(endpoint.into());
                 }
             }
         }
-        info!("\n\n{}\n", Cluster::format(&enabled));
-
-        if enabled.is_empty() {
-            Err(ClusterNonOperational)
-        } else {
-            let members = Arc::new(Registry::new(enabled, disabled));
-
-            // TODO: reconnecting...,
-            let pinger = Pinger::new(members.clone());
-            tokio::spawn(async move { pinger.run().await }); // TODO: cancel on drop
-
-            Ok(Cluster { members })
-        }
+        Ok((connected, disconnected))
     }
 
     fn format(members: &HashMap<Address, Member>) -> String {
-        let mut s = String::new();
-        s.push_str(&format!("Members {{size: {}}} [\n", members.len()));
+        let mut formatted = String::new();
+        formatted.push_str(&format!("Members {{size: {}}} [\n", members.len()));
         for member in members.values() {
-            s.push_str(&format!("\tMember {}\n", member));
+            formatted.push_str(&format!("\tMember {}\n", member));
         }
-        s.push_str("]");
-        s
+        formatted.push_str("]");
+        formatted
+    }
+
+    fn ping(members: Arc<Registry<Address, Member>>, receiver: oneshot::Receiver<()>) {
+        use crate::protocol::ping::{PingRequest, PingResponse};
+
+        tokio::spawn(async move {
+            let mut ticks = Ticks::new(PING_INTERVAL, receiver);
+            while let Some(_) = ticks.next().await {
+                for member in members.get_all().await {
+                    if let Err(_) = member.send::<PingRequest, PingResponse>(PingRequest::new()).await {
+                        error!("Pinging {} failed.", member);
+                        members.disable(member.address()).await
+                    }
+                }
+            }
+        });
     }
 
     pub(crate) async fn dispatch<RQ, RS>(&self, request: RQ) -> Result<RS>
@@ -182,32 +222,35 @@ where
     }
 }
 
-const PING_INTERVAL: Duration = Duration::from_secs(300);
-
-struct Pinger {
-    members: Arc<Registry<Address, Member>>,
+struct Ticks {
+    interval: Interval,
+    receiver: oneshot::Receiver<()>,
 }
 
-impl Pinger {
-    fn new(members: Arc<Registry<Address, Member>>) -> Self {
-        Pinger { members }
-    }
-
-    async fn run(&self) {
-        use tokio::stream::StreamExt;
-        // TODO: remove dependency to protocol ???
-        use crate::protocol::ping::{PingRequest, PingResponse};
-
-        let mut interval = tokio::time::interval(PING_INTERVAL);
-        loop {
-            interval.next().await;
-            for member in self.members.get_all().await {
-                if let Err(_) = member.send::<PingRequest, PingResponse>(PingRequest::new()).await {
-                    error!("Pinging {} failed.", member);
-                    self.members.disable(member.address()).await
-                }
-            }
+impl Ticks {
+    fn new(interval: Duration, receiver: oneshot::Receiver<()>) -> Self {
+        Ticks {
+            interval: tokio::time::interval(interval),
+            receiver,
         }
+    }
+}
+
+impl Stream for Ticks {
+    type Item = ();
+
+    fn poll_next(mut self: Pin<&mut Self>, cx: &mut Context<'_>) -> Poll<Option<Self::Item>> {
+        use std::future::Future;
+
+        match Pin::new(&mut self.receiver).poll(cx) {
+            Poll::Pending => {}
+            _ => return Poll::Ready(None),
+        }
+
+        Poll::Ready(match futures::ready!(Pin::new(&mut self.interval).poll_next(cx)) {
+            None => None,
+            _ => Some(()),
+        })
     }
 }
 

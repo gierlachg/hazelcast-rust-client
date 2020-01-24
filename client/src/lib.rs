@@ -39,7 +39,7 @@ impl HazelcastClient {
         E: IntoIterator<Item = &'a SocketAddr>,
     {
         info!("HazelcastClient {} is STARTING", env!("CARGO_PKG_VERSION"));
-        let cluster = Cluster::connect(endpoints, username, password).await?;
+        let cluster = Cluster::init(endpoints, username, password).await?;
         info!("HazelcastClient is CONNECTED");
         info!("HazelcastClient is STARTED");
 
