@@ -54,6 +54,7 @@ impl Cluster {
     }
 
     fn ping(members: Arc<Members>, receiver: oneshot::Receiver<()>) {
+        // TODO: remove dependency to protocol ???
         use crate::protocol::ping::{PingRequest, PingResponse};
 
         tokio::spawn(async move {
