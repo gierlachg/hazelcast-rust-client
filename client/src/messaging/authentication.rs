@@ -1,4 +1,4 @@
-use crate::protocol::{Address, ClusterMember};
+use crate::messaging::{Address, ClusterMember};
 use derive_more::Display;
 
 #[derive(Request, Eq, PartialEq, Debug)]

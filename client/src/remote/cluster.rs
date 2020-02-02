@@ -18,10 +18,8 @@ use tokio::{
     time::Interval,
 };
 
-// TODO: remove dependency to protocol ???
 use crate::{
-    messaging::{Request, Response},
-    protocol::Address,
+    messaging::{Address, Request, Response},
     remote::member::Member,
     HazelcastClientError::{ClusterNonOperational, NodeNonOperational},
     Result,
@@ -40,7 +38,6 @@ impl Cluster {
         E: IntoIterator<Item = &'a SocketAddr>,
     {
         let members = Arc::new(Members::from(endpoints, username, password).await?);
-        info!("\n\n{}\n", members.to_string().await);
 
         let (ping_handle, receiver) = oneshot::channel();
         Cluster::ping(members.clone(), receiver);
@@ -54,8 +51,7 @@ impl Cluster {
     }
 
     fn ping(members: Arc<Members>, receiver: oneshot::Receiver<()>) {
-        // TODO: remove dependency to protocol ???
-        use crate::protocol::ping::{PingRequest, PingResponse};
+        use crate::messaging::ping::{PingRequest, PingResponse};
 
         tokio::spawn(async move {
             let mut ticks = Ticks::new(PING_INTERVAL, receiver);
@@ -104,6 +100,18 @@ impl Cluster {
             None => Err(ClusterNonOperational),
         }
     }
+
+    pub(crate) async fn to_string(&self) -> String {
+        let members = self.members.get_all().await;
+
+        let mut formatted = String::new();
+        formatted.push_str(&format!("\n\nMembers {{size: {}}} [\n", members.len()));
+        for member in members {
+            formatted.push_str(&format!("\tMember {}\n", member));
+        }
+        formatted.push_str("]\n");
+        formatted
+    }
 }
 
 struct Members {
@@ -149,18 +157,6 @@ impl Members {
 
     async fn disable(&self, key: &Address) {
         self.registry.write().await.disable(key)
-    }
-
-    async fn to_string(&self) -> String {
-        let members = self.get_all().await;
-
-        let mut formatted = String::new();
-        formatted.push_str(&format!("Members {{size: {}}} [\n", members.len()));
-        for member in members {
-            formatted.push_str(&format!("\tMember {}\n", member));
-        }
-        formatted.push_str("]");
-        formatted
     }
 }
 

@@ -85,8 +85,7 @@ impl<R: Response> TryFrom<R> for Message {
 
     fn try_from(self) -> Result<R, Self::Error> {
         use crate::codec::Reader;
-        // TODO: remove dependency to protocol ???
-        use crate::protocol::error::Exception;
+        use crate::messaging::error::Exception;
 
         let r#type = self.r#type();
         let mut readable = self.payload();

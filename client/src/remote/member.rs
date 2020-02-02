@@ -5,10 +5,8 @@ use std::{
 
 use derive_more::Display;
 
-// TODO: remove dependency to protocol ???
 use crate::{
-    messaging::{Request, Response},
-    protocol::Address,
+    messaging::{Address, Request, Response},
     remote::{channel::Channel, CLIENT_TYPE, CLIENT_VERSION, PROTOCOL_VERSION},
     HazelcastClientError::{AuthenticationFailure, CommunicationFailure},
     {Result, TryFrom},
@@ -26,8 +24,7 @@ pub(in crate::remote) struct Member {
 
 impl Member {
     pub(in crate::remote) async fn connect(endpoint: &SocketAddr, username: &str, password: &str) -> Result<Self> {
-        // TODO: remove dependency to protocol ???
-        use crate::protocol::authentication::{AuthenticationRequest, AuthenticationResponse, AuthenticationStatus};
+        use crate::messaging::authentication::{AuthenticationRequest, AuthenticationResponse, AuthenticationStatus};
 
         let channel = match Channel::connect(endpoint).await {
             Ok(channel) => channel,
