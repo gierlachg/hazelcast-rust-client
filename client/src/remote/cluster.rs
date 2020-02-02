@@ -29,7 +29,7 @@ const PING_INTERVAL: Duration = Duration::from_secs(300);
 
 pub(crate) struct Cluster {
     members: Arc<Members>,
-    _ping_handle: oneshot::Sender<()>,
+    _pinger: Pinger,
 }
 
 impl Cluster {
@@ -38,32 +38,13 @@ impl Cluster {
         E: IntoIterator<Item = &'a SocketAddr>,
     {
         let members = Arc::new(Members::from(endpoints, username, password).await?);
-
-        let (ping_handle, receiver) = oneshot::channel();
-        Cluster::ping(members.clone(), receiver);
-
-        // TODO: reconnecting...
+        let pinger = Pinger::ping(members.clone());
+        // TODO: reconnector...
 
         Ok(Cluster {
             members,
-            _ping_handle: ping_handle,
+            _pinger: pinger,
         })
-    }
-
-    fn ping(members: Arc<Members>, receiver: oneshot::Receiver<()>) {
-        use crate::messaging::ping::{PingRequest, PingResponse};
-
-        tokio::spawn(async move {
-            let mut ticks = Ticks::new(PING_INTERVAL, receiver);
-            while let Some(_) = ticks.next().await {
-                for member in members.get_all().await {
-                    if let Err(_) = member.send::<PingRequest, PingResponse>(PingRequest::new()).await {
-                        error!("Pinging {} failed.", member);
-                        members.disable(member.address()).await
-                    }
-                }
-            }
-        });
     }
 
     pub(crate) async fn dispatch<RQ, RS>(&self, request: RQ) -> Result<RS>
@@ -111,6 +92,31 @@ impl Cluster {
         }
         formatted.push_str("]\n");
         formatted
+    }
+}
+
+struct Pinger {
+    _handle: oneshot::Sender<()>,
+}
+
+impl Pinger {
+    fn ping(members: Arc<Members>) -> Self {
+        use crate::messaging::ping::{PingRequest, PingResponse};
+
+        let (handle, receiver) = oneshot::channel();
+        tokio::spawn(async move {
+            let mut ticks = Ticks::new(PING_INTERVAL, receiver);
+            while let Some(_) = ticks.next().await {
+                for member in members.get_all().await {
+                    if let Err(_) = member.send::<PingRequest, PingResponse>(PingRequest::new()).await {
+                        error!("Pinging {} failed.", member);
+                        members.disable(member.address()).await
+                    }
+                }
+            }
+        });
+
+        Pinger { _handle: handle }
     }
 }
 
