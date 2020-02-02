@@ -7,7 +7,7 @@ use crate::codec::{Reader, Writer};
 pub(crate) mod authentication;
 pub(crate) mod error;
 pub(crate) mod ping;
-pub mod pn_counter;
+pub(crate) mod pn_counter;
 
 pub(crate) trait Request: Writer {
     fn r#type() -> u16;
