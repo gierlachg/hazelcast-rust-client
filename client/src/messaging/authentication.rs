@@ -1,5 +1,6 @@
-use crate::messaging::{Address, ClusterMember};
 use derive_more::Display;
+
+use crate::messaging::{Address, ClusterMember};
 
 #[derive(Request, Eq, PartialEq, Debug)]
 #[r#type = 0x2]
