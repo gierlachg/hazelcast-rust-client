@@ -14,7 +14,7 @@ use hazelcast_rust_client::HazelcastClient;
 async fn main() -> Result<(), Box<dyn Error + Send + Sync>> {
     init_logger();
 
-    let client = HazelcastClient::new(vec![&"127.0.0.1:5701".parse().unwrap()], "dev", "dev-pass").await?;
+    let client = HazelcastClient::new(vec!["127.0.0.1:5701".parse().unwrap()], "dev", "dev-pass").await?;
 
     let mut counter = client.pn_counter(&counter_name());
 

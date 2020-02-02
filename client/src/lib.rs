@@ -34,9 +34,9 @@ pub struct HazelcastClient {
 }
 
 impl HazelcastClient {
-    pub async fn new<'a, E>(endpoints: E, username: &str, password: &str) -> Result<Self>
+    pub async fn new<E>(endpoints: E, username: &str, password: &str) -> Result<Self>
     where
-        E: IntoIterator<Item = &'a SocketAddr>,
+        E: IntoIterator<Item = SocketAddr>,
     {
         info!("HazelcastClient {} is STARTING", env!("CARGO_PKG_VERSION"));
         let cluster = Cluster::init(endpoints, username, password).await?;

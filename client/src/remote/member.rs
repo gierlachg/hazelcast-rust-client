@@ -15,7 +15,7 @@ use crate::{
 #[derive(Display)]
 #[display(fmt = "{} - {:?}", address, owner_id)]
 pub(in crate::remote) struct Member {
-    _id: String,
+    id: String,
     owner_id: String,
     address: Address,
 
@@ -36,7 +36,7 @@ impl Member {
         let response: AuthenticationResponse = sender.send(request).await?;
         match AuthenticationResponse::status(&response) {
             AuthenticationStatus::Authenticated => Ok(Member {
-                _id: response.id().as_ref().expect("missing id!").clone(),
+                id: response.id().as_ref().expect("missing id!").clone(),
                 owner_id: response.owner_id().as_ref().expect("missing owner id!").clone(),
                 address: response.address().as_ref().expect("missing address!").clone(),
                 sender,
@@ -51,6 +51,14 @@ impl Member {
 
     pub(in crate::remote) fn address(&self) -> &Address {
         &self.address
+    }
+}
+
+impl Eq for Member {}
+
+impl PartialEq for Member {
+    fn eq(&self, other: &Self) -> bool {
+        self.id.eq(&other.id)
     }
 }
 

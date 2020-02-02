@@ -1,11 +1,13 @@
 use std::sync::Arc;
 
-use crate::messaging::pn_counter::{
-    PnCounterAddRequest, PnCounterAddResponse, PnCounterGetReplicaCountRequest, PnCounterGetReplicaCountResponse,
-    PnCounterGetRequest, PnCounterGetResponse,
-};
 use crate::{
-    messaging::{Address, ReplicaTimestampEntry},
+    messaging::{
+        pn_counter::{
+            PnCounterAddRequest, PnCounterAddResponse, PnCounterGetReplicaCountRequest,
+            PnCounterGetReplicaCountResponse, PnCounterGetRequest, PnCounterGetResponse,
+        },
+        Address, ReplicaTimestampEntry,
+    },
     remote::cluster::Cluster,
     Result,
 };

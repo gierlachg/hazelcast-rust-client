@@ -25,17 +25,15 @@ use crate::{
     Result,
 };
 
-const PING_INTERVAL: Duration = Duration::from_secs(300);
-
 pub(crate) struct Cluster {
     members: Arc<Members>,
     _pinger: Pinger,
 }
 
 impl Cluster {
-    pub(crate) async fn init<'a, E>(endpoints: E, username: &str, password: &str) -> Result<Self>
+    pub(crate) async fn init<E>(endpoints: E, username: &str, password: &str) -> Result<Self>
     where
-        E: IntoIterator<Item = &'a SocketAddr>,
+        E: IntoIterator<Item = SocketAddr>,
     {
         let members = Arc::new(Members::from(endpoints, username, password).await?);
         let pinger = Pinger::ping(members.clone());
@@ -95,6 +93,8 @@ impl Cluster {
     }
 }
 
+const PING_INTERVAL: Duration = Duration::from_secs(300);
+
 struct Pinger {
     _handle: oneshot::Sender<()>,
 }
@@ -110,7 +110,7 @@ impl Pinger {
                 for member in members.get_all().await {
                     if let Err(_) = member.send::<PingRequest, PingResponse>(PingRequest::new()).await {
                         error!("Pinging {} failed.", member);
-                        members.disable(member.address()).await
+                        members.disable(&*member).await
                     }
                 }
             }
@@ -127,27 +127,25 @@ struct Members {
 impl Members {
     async fn from<'a, E>(endpoints: E, username: &str, password: &str) -> Result<Self>
     where
-        E: IntoIterator<Item = &'a SocketAddr>,
+        E: IntoIterator<Item = SocketAddr>,
     {
-        let mut connected = HashMap::new();
-        let mut disconnected = HashSet::new();
-        for endpoint in endpoints.into_iter().collect::<HashSet<&SocketAddr>>() {
+        let mut registry = Registry::new();
+        for endpoint in endpoints.into_iter().collect::<HashSet<SocketAddr>>() {
             info!("Trying to connect to {} as owner member.", endpoint);
             match Member::connect(&endpoint, username, password).await {
-                Ok(member) => {
-                    connected.insert(member.address().clone(), member);
-                }
-                Err(e) => {
-                    error!("Failed to connect to {} - {}", endpoint, e);
-                    disconnected.insert(endpoint.into());
-                }
+                Ok(member) => registry.enable(member.address().clone(), member),
+                Err(e) => error!("Failed to connect to {} - {}", endpoint, e),
             }
         }
 
         Ok(Members {
-            registry: RwLock::new(Registry::new(connected, disconnected)),
+            registry: RwLock::new(registry),
         })
     }
+
+    /*async fn enable(&self, address: Address, member: Member) {
+        self.registry.write().await.enable(address, member)
+    }*/
 
     async fn get(&self) -> Option<Arc<Member>> {
         self.registry.read().await.get()
@@ -161,14 +159,14 @@ impl Members {
         self.registry.read().await.get_all()
     }
 
-    async fn disable(&self, key: &Address) {
-        self.registry.write().await.disable(key)
+    async fn disable(&self, member: &Member) {
+        self.registry.write().await.disable(member)
     }
 }
 
 struct Registry<K, V> {
-    vec: Vec<(K, Arc<V>)>,
-    map: HashMap<K, Arc<V>>,
+    enabled: Vec<Arc<V>>,
+    enabled_by_key: HashMap<K, Arc<V>>,
     disabled: HashSet<K>,
     sequencer: AtomicUsize,
 }
@@ -176,39 +174,56 @@ struct Registry<K, V> {
 impl<K, V> Registry<K, V>
 where
     K: Eq + Hash + Clone,
+    V: Eq,
 {
-    fn new(enabled: HashMap<K, V>, disabled: HashSet<K>) -> Self {
-        let vec: Vec<(K, Arc<V>)> = enabled.into_iter().map(|(k, v)| (k.clone(), Arc::new(v))).collect();
-        let map = vec.iter().map(|(k, v)| (k.clone(), v.clone())).collect();
+    fn new() -> Self {
         Registry {
-            vec,
-            map,
-            disabled,
+            enabled: Vec::new(),
+            enabled_by_key: HashMap::new(),
+            disabled: HashSet::new(),
             sequencer: AtomicUsize::new(0),
         }
     }
 
+    fn enable(&mut self, key: K, value: V) {
+        self.disabled.remove(&key);
+        let value = Arc::new(value);
+        self.enabled.push(value.clone());
+        self.enabled_by_key.insert(key, value);
+    }
+
     fn get(&self) -> Option<Arc<V>> {
-        if self.vec.is_empty() {
+        if self.enabled.is_empty() {
             None
         } else {
             let sequence = self.sequencer.fetch_add(1, Ordering::SeqCst);
-            self.vec.get(sequence % self.vec.len()).as_ref().map(|e| e.1.clone())
+            self.enabled.get(sequence % self.enabled.len()).map(Arc::clone)
         }
     }
 
     fn get_by(&self, key: &K) -> Option<Arc<V>> {
-        self.map.get(key).map(Arc::clone)
+        self.enabled_by_key.get(key).map(Arc::clone)
     }
 
     fn get_all(&self) -> Vec<Arc<V>> {
-        self.vec.iter().map(|(_, v)| v.clone()).collect()
+        self.enabled.iter().map(Arc::clone).collect()
     }
 
-    fn disable(&mut self, key: &K) {
-        self.vec.iter().position(|(k, _)| k == key).map(|i| self.vec.remove(i));
-        self.map.remove(key);
-        self.disabled.insert(key.clone());
+    fn disable(&mut self, value: &V) {
+        self.enabled
+            .iter()
+            .position(|v| **v == *value)
+            .map(|i| self.enabled.remove(i));
+        if let Some(key) = self
+            .enabled_by_key
+            .iter()
+            .filter(|(_, v)| ***v == *value)
+            .nth(0)
+            .map(|(k, _)| k.clone())
+        {
+            self.enabled_by_key.remove(&key);
+            self.disabled.insert(key);
+        }
     }
 }
 
@@ -250,9 +265,7 @@ mod tests {
 
     #[test]
     fn should_get_none_for_empty_registry() {
-        let enabled: HashMap<&str, &str> = HashMap::new();
-        let disabled = HashSet::new();
-        let registry = Registry::new(enabled, disabled);
+        let registry: Registry<&str, &str> = Registry::new();
 
         assert!(registry.get().is_none());
         assert!(registry.get_by(&"some-key").is_none());
@@ -260,45 +273,28 @@ mod tests {
     }
 
     #[test]
-    fn should_get_none_for_all_disabled_in_registry() {
+    fn should_get_some_after_enable() {
+        let mut registry = Registry::new();
+
         let key = "some-key";
+        let value = "some=value";
 
-        let enabled: HashMap<&str, &str> = HashMap::new();
-        let mut disabled = HashSet::new();
-        disabled.insert(key);
-        let registry = Registry::new(enabled, disabled);
-
-        assert!(registry.get().is_none());
-        assert!(registry.get_by(&key).is_none());
-        assert!(registry.get_all().is_empty());
-    }
-
-    #[test]
-    fn should_get_some_from_registry() {
-        let key = "some-key";
-        let value = "some-value";
-
-        let mut enabled = HashMap::new();
-        enabled.insert(key, value);
-        let disabled = HashSet::new();
-        let registry = Registry::new(enabled, disabled);
+        registry.enable(key, value);
 
         assert_eq!(*registry.get().unwrap(), value);
         assert_eq!(*registry.get_by(&key).unwrap(), value);
-        assert_eq!(*registry.get_all()[0], "some-value");
+        assert_eq!(*registry.get_all()[0], value);
     }
 
     #[test]
-    fn should_get_none_after_disabling_from_registry() {
+    fn should_get_none_after_disable() {
+        let mut registry = Registry::new();
+
         let key = "some-key";
-        let value = "some-value";
+        let value = "some=value";
 
-        let mut enabled = HashMap::new();
-        enabled.insert(key, value);
-        let disabled = HashSet::new();
-        let mut registry = Registry::new(enabled, disabled);
-
-        registry.disable(&"some-key");
+        registry.enable(key, value);
+        registry.disable(&value);
 
         assert!(registry.get().is_none());
         assert!(registry.get_by(&key).is_none());
